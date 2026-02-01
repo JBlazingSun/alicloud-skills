@@ -1,31 +1,31 @@
-# Alibaba Cloud Core Claude Skills
+# Alibaba Cloud 核心 Claude Skills
 
-English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
+繁體中文 | [English](README.md) | [简体中文](README.zh-CN.md)
 
-A curated collection of **Alibaba Cloud core Claude skills** covering key product lines,
-including Model Studio, OSS, ECS, and more.
+這是一套精選的 **Alibaba Cloud 核心 Claude skills**，涵蓋關鍵產品線，
+包括 Model Studio、OSS、ECS 等。
 
-## Repository Structure
+## 專案結構
 
-- `skills/` — canonical skill sources grouped by product line
-  - `ai/` — Model Studio (capability-based groups)
+- `skills/` — 依產品線歸類的技能來源
+  - `ai/` — Model Studio（依能力分組）
     - `text/` `image/` `audio/` `video/` `multimodal/` `search/` `misc/` `entry/`
   - `storage/` — OSS
   - `compute/` — ECS
-  - `media/` — intelligent media creation
+  - `media/` — 智慧媒體創作
   - `network/` — VPC / SLB / EIP
   - `database/` — RDS / PolarDB / Redis
   - `security/` — RAM / KMS / WAF
   - `observability/` — SLS / ARMS / CloudMonitor
-- `examples/` — end-to-end stories and usage walkthroughs
+- `examples/` — 端到端故事與使用流程示例
 
-## Brand Aliases
+## 品牌別名
 
-- `modelstudio/` — symlink to `skills/ai/` (overseas brand)
+- `modelstudio/` — 指向 `skills/ai/` 的軟連結（海外品牌）
 
-## Included Skills (current)
+## 已包含技能（目前）
 
-Located in `skills/ai/`:
+位於 `skills/ai/`：
 
 - `entry/alicloud-ai-entry-modelstudio`
 - `entry/alicloud-ai-entry-modelstudio-test`
@@ -38,33 +38,33 @@ Located in `skills/ai/`:
 - `search/alicloud-ai-search-milvus`
 - `text/alicloud-ai-text-document-mind`
 
-Located in `skills/storage/`:
+位於 `skills/storage/`：
 
 - `oss/alicloud-storage-oss-ossutil`
 
-Located in `skills/compute/`:
+位於 `skills/compute/`：
 
 - `fc/alicloud-compute-fc-serverless-devs`
 - `fc/alicloud-compute-fc-agentrun`
 - `swas/alicloud-compute-swas-open`
 
-Located in `skills/database/`:
+位於 `skills/database/`：
 
 - `rds/alicloud-database-rds-supabase`
 
-Located in `skills/network/`:
+位於 `skills/network/`：
 
 - `dns/alicloud-network-dns-cli`
 
-Located in `skills/media/`:
+位於 `skills/media/`：
 
 - `video/alicloud-media-video-translation`
 
-Located in `skills/observability/`:
+位於 `skills/observability/`：
 
 - `sls/alicloud-observability-sls-log-query`
 
-## Skill Index
+## 技能索引
 
 <!-- SKILL_INDEX_BEGIN -->
 | Category | Skill | Path |
@@ -109,44 +109,44 @@ Located in `skills/observability/`:
 | storage/oss | alicloud-storage-oss-ossutil | `skills/storage/oss/alicloud-storage-oss-ossutil` |
 <!-- SKILL_INDEX_END -->
 
-Update the index by running: `scripts/update_skill_index.sh`
+更新索引：執行 `scripts/update_skill_index.sh`
 
-## Industry Use Cases
+## 產業場景示例
 
-See: `examples/industry-use-cases.md`
+詳見：`examples/industry-use-cases.md`
 
-## Notes
+## 備註
 
-- This repository focuses on Alibaba Cloud's core capabilities and their Claude skill implementations.
-- More skills can be added under `skills/` as they become available.
+- 本專案聚焦 Alibaba Cloud 的核心能力及其 Claude skill 實作。
+- 之後可持續在 `skills/` 下擴充更多技能。
 
-## Output Policy
+## 輸出規範
 
-- All temporary files and generated artifacts must be written under `output/`.
-- Use subfolders per skill, e.g. `output/<skill>/...`.
-- `output/` is ignored by git and should not be committed.
+- 所有臨時檔案與生成物必須寫入 `output/`。
+- 按技能劃分子目錄，例如 `output/<skill>/...`。
+- `output/` 會被 git 忽略，不允許提交。
 
-## AccessKey Configuration (Recommended)
+## AccessKey 設定（建議）
 
-Use RAM user/role with least privilege. Avoid embedding AKs in code or CLI arguments.
+建議使用 RAM 使用者/角色並遵循最小權限原則，避免在程式或命令列中明文暴露 AK。
 
-Preferred setup (environment variables):
+優先使用環境變數：
 
 ```bash
-export ALICLOUD_ACCESS_KEY_ID="your-ak"
-export ALICLOUD_ACCESS_KEY_SECRET="your-sk"
+export ALICLOUD_ACCESS_KEY_ID="你的AK"
+export ALICLOUD_ACCESS_KEY_SECRET="你的SK"
 export ALICLOUD_REGION_ID="cn-beijing"
 ```
 
-Or use standard CLI/SDK config files:
+或使用標準 CLI/SDK 設定檔：
 
 `~/.alibabacloud/credentials`
 
 ```ini
 [default]
 type = access_key
-access_key_id = your-ak
-access_key_secret = your-sk
+access_key_id = 你的AK
+access_key_secret = 你的SK
 ```
 
 `~/.alibabacloud/config`
@@ -156,7 +156,7 @@ access_key_secret = your-sk
 region_id = cn-beijing
 ```
 
-## Install via Skillfish
+## 透過 Skillfish 安裝
 
 ```bash
 skillfish install github.com/cinience/alicloud-skills

@@ -1,0 +1,37 @@
+---
+name: alicloud-security-center-sas
+description: Manage Alibaba Cloud Security Center (Sas) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product. Also use to discover APIs via OpenAPI metadata when unsure.
+---
+
+Category: service
+
+# Security Center
+
+Use Alibaba Cloud OpenAPI (RPC) with official SDKs or OpenAPI Explorer to manage resources for Security Center.
+
+## Workflow
+
+1) Confirm region, resource identifiers, and desired action.
+2) Discover API list and required parameters (see references).
+3) Call API with SDK or OpenAPI Explorer.
+4) Verify results with describe/list APIs.
+
+## AccessKey priority (must follow)
+
+1) Environment variables: `ALICLOUD_ACCESS_KEY_ID` / `ALICLOUD_ACCESS_KEY_SECRET` / `ALICLOUD_REGION_ID`
+2) Shared config files: `~/.alibabacloud/credentials` and `~/.alibabacloud/config`
+
+## API discovery
+
+- Product code: `Sas`
+- Default API version: `2018-12-03`
+- Use OpenAPI metadata endpoints to list APIs and get schemas (see references).
+
+## Output policy
+
+If you need to save responses or generated artifacts, write them under:
+`output/alicloud-security-center-sas/`
+
+## References
+
+- Sources: `references/sources.md`
