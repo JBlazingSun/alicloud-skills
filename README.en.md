@@ -1,45 +1,45 @@
-# Alibaba Cloud 核心 Claude Skills
+# Alibaba Cloud Core Claude Skills
 
-简体中文 | [English](README.en.md) | [繁體中文](README.zh-TW.md)
+English | [简体中文](README.md) | [繁體中文](README.zh-TW.md)
 
-这是一个精选的 **Alibaba Cloud 核心 Claude skills** 集合，覆盖关键产品线，
-包括 Model Studio、OSS、ECS 等。
+A curated collection of **Alibaba Cloud core Claude skills** covering key product lines,
+including Model Studio, OSS, ECS, and more.
 
-## 快速开始
+## Quick Start
 
-推荐安装（一次性安装全部、跳过确认、强制覆盖）：
+Recommended install (all skills, skip prompts, overwrite existing):
 
 ```bash
 npx skillfish add cinience/alicloud-skills --all -y --force
 ```
 
-安装全部并跳过确认（不覆盖已有技能）：
+Install all skills and skip prompts (no overwrite):
 
 ```bash
 npx skillfish add cinience/alicloud-skills --all -y
 ```
 
-如果仍出现选择界面，按 `a` 全选后回车提交。
+If you still see a selection prompt, press `a` to select all, then press Enter to submit.
 
-建议使用 RAM 用户/角色并遵循最小权限原则，避免在代码或命令行中明文暴露 AK。
+Use a RAM user/role with least privilege. Avoid embedding AKs in code or CLI arguments.
 
-优先使用环境变量：
+Configure AccessKey (recommended):
 
 ```bash
-export ALICLOUD_ACCESS_KEY_ID="你的AK"
-export ALICLOUD_ACCESS_KEY_SECRET="你的SK"
+export ALICLOUD_ACCESS_KEY_ID="your-ak"
+export ALICLOUD_ACCESS_KEY_SECRET="your-sk"
 export ALICLOUD_REGION_ID="cn-beijing"
 ```
 
-或者使用标准 CLI/SDK 配置文件：
+Or use standard CLI/SDK config files:
 
 `~/.alibabacloud/credentials`
 
 ```ini
 [default]
 type = access_key
-access_key_id = 你的AK
-access_key_secret = 你的SK
+access_key_id = your-ak
+access_key_secret = your-sk
 ```
 
 `~/.alibabacloud/config`
@@ -49,27 +49,27 @@ access_key_secret = 你的SK
 region_id = cn-beijing
 ```
 
-## 项目结构
+## Repository Structure
 
-- `skills/` — 按产品线归类的技能源目录
-  - `ai/` — Model Studio（按能力分组）
+- `skills/` — canonical skill sources grouped by product line
+  - `ai/` — Model Studio (capability-based groups)
     - `text/` `image/` `audio/` `video/` `multimodal/` `search/` `misc/` `entry/`
   - `storage/` — OSS
   - `compute/` — ECS
-  - `media/` — 智能媒体创作
+  - `media/` — intelligent media creation
   - `network/` — VPC / SLB / EIP
   - `database/` — RDS / PolarDB / Redis
   - `security/` — RAM / KMS / WAF
   - `observability/` — SLS / ARMS / CloudMonitor
-- `examples/` — 端到端故事与使用流程示例
+- `examples/` — end-to-end stories and usage walkthroughs
 
-## 品牌别名
+## Brand Aliases
 
-- `modelstudio/` — 指向 `skills/ai/` 的软链接（海外品牌）
+- `modelstudio/` — symlink to `skills/ai/` (overseas brand)
 
-## 已包含技能（当前）
+## Included Skills (current)
 
-位于 `skills/ai/`：
+Located in `skills/ai/`:
 
 - `entry/alicloud-ai-entry-modelstudio`
 - `entry/alicloud-ai-entry-modelstudio-test`
@@ -82,33 +82,33 @@ region_id = cn-beijing
 - `search/alicloud-ai-search-milvus`
 - `text/alicloud-ai-text-document-mind`
 
-位于 `skills/storage/`：
+Located in `skills/storage/`:
 
 - `oss/alicloud-storage-oss-ossutil`
 
-位于 `skills/compute/`：
+Located in `skills/compute/`:
 
 - `fc/alicloud-compute-fc-serverless-devs`
 - `fc/alicloud-compute-fc-agentrun`
 - `swas/alicloud-compute-swas-open`
 
-位于 `skills/database/`：
+Located in `skills/database/`:
 
 - `rds/alicloud-database-rds-supabase`
 
-位于 `skills/network/`：
+Located in `skills/network/`:
 
 - `dns/alicloud-network-dns-cli`
 
-位于 `skills/media/`：
+Located in `skills/media/`:
 
 - `video/alicloud-media-video-translation`
 
-位于 `skills/observability/`：
+Located in `skills/observability/`:
 
 - `sls/alicloud-observability-sls-log-query`
 
-## 技能索引
+## Skill Index
 
 <!-- SKILL_INDEX_BEGIN -->
 | Category | Skill | Path |
@@ -153,19 +153,19 @@ region_id = cn-beijing
 | storage/oss | alicloud-storage-oss-ossutil | `skills/storage/oss/alicloud-storage-oss-ossutil` |
 <!-- SKILL_INDEX_END -->
 
-更新索引：运行 `scripts/update_skill_index.sh`
+Update the index by running: `scripts/update_skill_index.sh`
 
-## 行业场景示例
+## Industry Use Cases
 
-详见：`examples/industry-use-cases.md`
+See: `examples/industry-use-cases.md`
 
-## 备注
+## Notes
 
-- 本仓库聚焦 Alibaba Cloud 的核心能力及其 Claude skill 实现。
-- 后续可在 `skills/` 下持续扩展更多技能。
+- This repository focuses on Alibaba Cloud's core capabilities and their Claude skill implementations.
+- More skills can be added under `skills/` as they become available.
 
-## 输出规范
+## Output Policy
 
-- 所有临时文件与生成物必须写入 `output/`。
-- 按技能划分子目录，例如 `output/<skill>/...`。
-- `output/` 被 git 忽略，不允许提交。
+- All temporary files and generated artifacts must be written under `output/`.
+- Use subfolders per skill, e.g. `output/<skill>/...`.
+- `output/` is ignored by git and should not be committed.
