@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md) | [繁體中文](README.zh-TW.md)
 
-Cloud Mind：把世界级云基建，折叠进你的对话框。
+Cloud Mind：把世界级云基建，折叠进你的AI对话框。
 
 
 这是一个精选的 **Alibaba Cloud 核心 AI Agent skills** 集合，覆盖关键产品线，
