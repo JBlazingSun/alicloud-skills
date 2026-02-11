@@ -1,6 +1,6 @@
 ---
 name: alicloud-compute-ecs
-description: Manage Alibaba Cloud Elastic Compute Service (ECS) via OpenAPI/SDK. Use for listing or creating instances, starting/stopping/rebooting, managing disks/snapshots/images/security groups/key pairs/ENIs, querying status, and troubleshooting workflows for this product. Also use to discover APIs via OpenAPI metadata when unsure.
+description: Manage Alibaba Cloud Elastic Compute Service (ECS) via OpenAPI/SDK. Use for listing or creating instances, starting/stopping/rebooting, managing disks/snapshots/images/security groups/key pairs/ENIs, querying status, and troubleshooting workflows for this product.
 ---
 
 Category: service

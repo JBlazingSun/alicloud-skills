@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-content-aimiaobi
-description: Manage Alibaba Cloud Quan Miao (AiMiaoBi) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product. Also use to discover APIs via OpenAPI metadata when unsure.
+description: Manage Alibaba Cloud Quan Miao (AiMiaoBi) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product.
 ---
 
 Category: service
@@ -27,6 +27,28 @@ Region policy: `ALICLOUD_REGION_ID` is an optional default. If unset, decide the
 - Product code: `AiMiaoBi`
 - Default API version: `2023-08-01`
 - Use OpenAPI metadata endpoints to list APIs and get schemas (see references).
+
+## High-frequency operation patterns
+
+1) Inventory/list: prefer `List*` / `Describe*` APIs to get current resources.
+2) Change/configure: prefer `Create*` / `Update*` / `Modify*` / `Set*` APIs for mutations.
+3) Status/troubleshoot: prefer `Get*` / `Query*` / `Describe*Status` APIs for diagnosis.
+
+## Minimal executable quickstart
+
+Use metadata-first discovery before calling business APIs:
+
+```bash
+python scripts/list_openapi_meta_apis.py
+```
+
+Optional overrides:
+
+```bash
+python scripts/list_openapi_meta_apis.py --product-code <ProductCode> --version <Version>
+```
+
+The script writes API inventory artifacts under the skill output directory.
 
 ## Output policy
 

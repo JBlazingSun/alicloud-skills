@@ -15,8 +15,9 @@ Category: tool
 ## 快速接入流程
 
 1. 安装 ossutil 2.0。
-2. 运行 `ossutil config` 完成交互式配置。
-3. 执行命令（高级命令或 API 级命令）。
+2. 配置 AK/SK 与默认 Region（`ossutil config` 或配置文件）。
+3. 先 `ossutil ls` 列 bucket，再按 bucket 所在 region 列 object。
+4. 执行上传/下载/同步或 API 级命令。
 
 ## 安装 ossutil 2.0
 
@@ -31,7 +32,7 @@ ossutil config
 ```
 
 - 默认配置文件路径：
-  - Linux：`/root/.ossutilconfig`
+  - Linux/macOS：`~/.ossutilconfig`
   - Windows：`C:\Users\issuser\.ossutilconfig`
 
 配置项主要包括：
@@ -75,10 +76,51 @@ access_key_secret = 你的SK
 
 ```bash
 ossutil ls
+ossutil ls oss://your-bucket -r --short-format --region cn-shanghai -e https://oss-cn-shanghai.aliyuncs.com
 ossutil cp ./local.txt oss://your-bucket/path/local.txt
 ossutil cp oss://your-bucket/path/remote.txt ./remote.txt
 ossutil sync ./local-dir oss://your-bucket/path/ --delete
 ```
+
+## 推荐执行流程（先列 bucket，再列对象）
+
+1) 列出所有 bucket
+
+```bash
+ossutil ls
+```
+
+2) 从输出中拿到目标 bucket 的 region（例如 `oss-cn-shanghai`），转换成 `--region` 所需格式（`cn-shanghai`）
+
+3) 列对象时显式指定 `--region` 与 `-e`（避免跨地域签名/endpoint 错误）
+
+```bash
+ossutil ls oss://your-bucket \
+  -r --short-format \
+  --region cn-shanghai \
+  -e https://oss-cn-shanghai.aliyuncs.com
+```
+
+4) 对超大 bucket，优先限制输出规模
+
+```bash
+ossutil ls oss://your-bucket --limited-num 100
+ossutil ls oss://your-bucket/some-prefix/ -r --short-format --region cn-shanghai -e https://oss-cn-shanghai.aliyuncs.com
+```
+
+## 常见报错与处理
+
+- `Error: region must be set in sign version 4.`
+  - 原因：缺少 region 配置。
+  - 处理：在配置文件补充 `region`，或命令行加 `--region cn-xxx`。
+
+- `The bucket you are attempting to access must be addressed using the specified endpoint`
+  - 原因：请求 endpoint 与 bucket 实际地域不一致。
+  - 处理：改用 bucket 所在地域 endpoint，如 `-e https://oss-cn-hongkong.aliyuncs.com`。
+
+- `Invalid signing region in Authorization header`
+  - 原因：签名 region 与 bucket 地域不一致。
+  - 处理：同时修正 `--region` 与 `-e`，两者必须与 bucket 所在地域一致。
 
 ## 凭证与安全建议
 

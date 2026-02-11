@@ -27,7 +27,7 @@ Category: test
 
 ## 输出建议
 
-- 将结果保存为 `outputs/alicloud-ai-entry-modelstudio-test-results.md`。
+- 将结果保存为 `output/alicloud-ai-entry-modelstudio-test-results.md`。
 
 ## 结果记录模板
 
