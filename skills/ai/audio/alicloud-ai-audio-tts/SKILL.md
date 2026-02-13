@@ -1,16 +1,18 @@
 ---
 name: alicloud-ai-audio-tts
-description: Generate human-like speech audio with Model Studio DashScope Qwen TTS (qwen3-tts-flash). Use when converting text to speech, producing voice lines for short drama/news videos, or documenting TTS request/response fields for DashScope.
+description: Generate human-like speech audio with Model Studio DashScope Qwen TTS models (qwen3-tts-flash, qwen3-tts-instruct-flash). Use when converting text to speech, producing voice lines for short drama/news videos, or documenting TTS request/response fields for DashScope.
 ---
 
 Category: provider
 
 # Model Studio Qwen TTS
 
-## Critical model name
+## Critical model names
 
-Use the recommended model:
+Use one of the recommended models:
 - `qwen3-tts-flash`
+- `qwen3-tts-instruct-flash`
+- `qwen3-tts-instruct-flash-2026-01-26`
 
 ## Prerequisites
 
@@ -29,6 +31,7 @@ python -m pip install dashscope
 - `text` (string, required)
 - `voice` (string, required)
 - `language_type` (string, optional; default `Auto`)
+- `instruction` (string, optional; recommended for instruct models)
 - `stream` (bool, optional; default false)
 
 ### Response
@@ -50,11 +53,12 @@ dashscope.base_http_api_url = "https://dashscope.aliyuncs.com/api/v1"
 
 text = "Hello, this is a short voice line."
 response = dashscope.MultiModalConversation.call(
-    model="qwen3-tts-flash",
+    model="qwen3-tts-instruct-flash",
     api_key=os.getenv("DASHSCOPE_API_KEY"),
     text=text,
     voice="Cherry",
     language_type="English",
+    instruction="Warm and calm tone, slightly slower pace.",
     stream=False,
 )
 
@@ -72,6 +76,7 @@ print(audio_url)
 
 - Keep requests concise; split long text into multiple calls if you hit size or timeout errors.
 - Use `language_type` consistent with the text to improve pronunciation.
+- Use `instruction` only when you need explicit style/tone control.
 - Cache by `(text, voice, language_type)` to avoid repeat costs.
 
 ## Output location
@@ -82,5 +87,7 @@ print(audio_url)
 ## References
 
 - `references/api_reference.md` for parameter mapping and streaming example.
+- Realtime mode is provided by `skills/ai/audio/alicloud-ai-audio-tts-realtime/`.
+- Voice cloning/design are provided by `skills/ai/audio/alicloud-ai-audio-tts-voice-clone/` and `skills/ai/audio/alicloud-ai-audio-tts-voice-design/`.
 
 - Source list: `references/sources.md`

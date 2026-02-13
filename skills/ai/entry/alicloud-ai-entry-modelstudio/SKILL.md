@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-entry-modelstudio
-description: Route Alibaba Cloud Model Studio requests to the right local skill (Qwen Image, Wan Video, Qwen TTS). Use when the user asks for Model Studio without specifying a capability.
+description: Route Alibaba Cloud Model Studio requests to the right local skill (Qwen Image, Qwen Image Edit, Wan Video, Wan R2V, Qwen TTS and advanced TTS variants). Use when the user asks for Model Studio without specifying a capability.
 ---
 
 Category: task
@@ -25,8 +25,13 @@ python -m pip install dashscope
 | 需求 | 目标技能 |
 | --- | --- |
 | 文生图 / 图像生成 | `skills/ai/image/alicloud-ai-image-qwen-image/` |
+| 图像编辑 | `skills/ai/image/alicloud-ai-image-qwen-image-edit/` |
 | 文生视频 / 图生视频（i2v） | `skills/ai/video/alicloud-ai-video-wan-video/` |
+| 参考生视频（r2v） | `skills/ai/video/alicloud-ai-video-wan-r2v/` |
 | 语音合成（TTS） | `skills/ai/audio/alicloud-ai-audio-tts/` |
+| 实时语音合成 | `skills/ai/audio/alicloud-ai-audio-tts-realtime/` |
+| 音色复刻（Voice Clone） | `skills/ai/audio/alicloud-ai-audio-tts-voice-clone/` |
+| 音色设计（Voice Design） | `skills/ai/audio/alicloud-ai-audio-tts-voice-design/` |
 | 向量检索 | `skills/ai/search/alicloud-ai-search-dashvector/` 或 `skills/ai/search/alicloud-ai-search-opensearch/` 或 `skills/ai/search/alicloud-ai-search-milvus/` |
 | 文档理解 | `skills/ai/text/alicloud-ai-text-document-mind/` |
 | 模型清单抓取/更新 | `skills/ai/misc/alicloud-ai-misc-crawl-and-skill/` |
@@ -41,7 +46,6 @@ python -m pip install dashscope
 - 文本生成/对话（LLM）与多模态理解
 - 文本/多模态向量与 Rerank
 - ASR 语音识别/转写/翻译
-- 图像编辑（扩图/抠图/修复等）
 - 视频编辑（风格/口型/剪辑）
 
 - 多模态/ASR 下载失败：优先用上面的公开 URL。

@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-image-qwen-image
-description: Generate images with Model Studio DashScope SDK using the qwen-image-max model. Use when implementing or documenting image.generate requests/responses, mapping prompt/negative_prompt/size/seed/reference_image, or integrating image generation into the video-agent pipeline.
+description: Generate images with Model Studio DashScope SDK using Qwen Image generation models (qwen-image-max, qwen-image-plus-2026-01-09). Use when implementing or documenting image.generate requests/responses, mapping prompt/negative_prompt/size/seed/reference_image, or integrating image generation into the video-agent pipeline.
 ---
 
 Category: provider
@@ -20,12 +20,11 @@ python -m pip install dashscope
 ```
 - Set `DASHSCOPE_API_KEY` in your environment, or add `dashscope_api_key` to `~/.alibabacloud/credentials` (env takes precedence).
 
-## Critical model name
+## Critical model names
 
-Use ONLY this exact model string:
+Use one of these exact model strings:
 - `qwen-image-max`
-
-Do not add date suffixes or aliases.
+- `qwen-image-plus-2026-01-09`
 
 ## Normalized interface (image.generate)
 
@@ -109,7 +108,7 @@ def generate_image(req: dict) -> dict:
         messages[0]["content"].insert(0, {"image": req["reference_image"]})
 
     response = ImageGeneration.call(
-        model="qwen-image-max",
+        model=req.get("model", "qwen-image-max"),
         messages=messages,
         size=req.get("size", "1024*1024"),
         api_key=os.getenv("DASHSCOPE_API_KEY"),
@@ -163,7 +162,7 @@ def generate_image(req: dict) -> dict:
 
 ## Anti-patterns
 
-- Do not invent model names or aliases; use `qwen-image-max` only.
+- Do not invent model names or aliases; use official model IDs only.
 - Do not store large base64 blobs in DB rows; use object storage.
 - Do not omit user-visible progress for long generations.
 
@@ -171,5 +170,6 @@ def generate_image(req: dict) -> dict:
 
 - See `references/api_reference.md` for a more detailed DashScope SDK mapping and response parsing tips.
 - See `references/prompt-guide.md` for prompt patterns and examples.
+- For edit workflows, use `skills/ai/image/alicloud-ai-image-qwen-image-edit/`.
 
 - Source list: `references/sources.md`
