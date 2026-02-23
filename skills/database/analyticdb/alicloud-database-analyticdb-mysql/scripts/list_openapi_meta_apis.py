@@ -14,7 +14,7 @@ import pathlib
 import urllib.request
 
 DEFAULT_PRODUCT_CODE = "adb"
-DEFAULT_VERSION = "2019-03-15"
+DEFAULT_VERSION = "2021-12-01"
 OUTPUT_DIR = pathlib.Path("output/alicloud-database-analyticdb-mysql")
 
 

@@ -14,7 +14,7 @@ import pathlib
 import urllib.request
 
 DEFAULT_PRODUCT_CODE = "Sas"
-DEFAULT_VERSION = "2018-12-03"
+DEFAULT_VERSION = "2021-01-14"
 OUTPUT_DIR = pathlib.Path("output/alicloud-security-center-sas")
 
 

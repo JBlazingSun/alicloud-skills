@@ -14,7 +14,7 @@ import pathlib
 import urllib.request
 
 DEFAULT_PRODUCT_CODE = "Green"
-DEFAULT_VERSION = "2022-03-02"
+DEFAULT_VERSION = "2022-09-26"
 OUTPUT_DIR = pathlib.Path("output/alicloud-security-content-moderation-green")
 
 

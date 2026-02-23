@@ -150,7 +150,7 @@ printf 'y\n' | npx -y @serverless-devs/s deploy
 
 - 细节与官方步骤见 `references/install_serverless_devs_and_docker.md`。
 - HTTP 触发器限制与响应头说明（默认域名会强制添加 Content-Disposition: attachment）
-  - https://www.alibabacloud.com/help/en/functioncompute/fc-3-0/user-guide/http-triggers-overview
+  - https://www.alibabacloud.com/help/en/functioncompute/fc/user-guide/http-triggers-overview
 - 自定义域名绑定与 CNAME 说明
   - https://www.alibabacloud.com/help/en/functioncompute/fc/user-guide/configure-custom-domain-names
 

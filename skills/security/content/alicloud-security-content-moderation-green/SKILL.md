@@ -25,7 +25,7 @@ Region policy: `ALICLOUD_REGION_ID` is an optional default. If unset, decide the
 ## API discovery
 
 - Product code: `Green`
-- Default API version: `2022-03-02`
+- Default API version: `2022-09-26`
 - Use OpenAPI metadata endpoints to list APIs and get schemas (see references).
 
 ## High-frequency operation patterns

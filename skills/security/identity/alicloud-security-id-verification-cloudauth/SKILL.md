@@ -25,7 +25,7 @@ Region policy: `ALICLOUD_REGION_ID` is an optional default. If unset, decide the
 ## API discovery
 
 - Product code: `Cloudauth`
-- Default API version: `2019-03-07`
+- Default API version: `2022-11-25`
 - Use OpenAPI metadata endpoints to list APIs and get schemas (see references).
 
 ## High-frequency operation patterns

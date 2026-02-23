@@ -14,7 +14,7 @@ import pathlib
 import urllib.request
 
 DEFAULT_PRODUCT_CODE = "Cloudauth"
-DEFAULT_VERSION = "2019-03-07"
+DEFAULT_VERSION = "2022-11-25"
 OUTPUT_DIR = pathlib.Path("output/alicloud-security-id-verification-cloudauth")
 
 
