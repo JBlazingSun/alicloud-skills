@@ -1,6 +1,6 @@
 # Alibaba Cloud Core AI Agent Skills
 
-English (current) | [简体中文](README.md) | [繁體中文](README.zh-TW.md)
+English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
 A curated collection of **Alibaba Cloud core AI Agent skills** covering key product lines,
 including Model Studio, OSS, ECS, and more.
