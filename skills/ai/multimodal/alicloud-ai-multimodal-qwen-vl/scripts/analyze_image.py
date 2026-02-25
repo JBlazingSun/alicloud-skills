@@ -15,6 +15,7 @@ import json
 import mimetypes
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,10 @@ DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_DETAIL = "auto"
+DEFAULT_TIMEOUT_S = 120
+DEFAULT_MAX_RETRIES = 2
+DEFAULT_RETRY_BACKOFF_S = 1.5
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 def _find_repo_root(start: Path) -> Path | None:
@@ -110,20 +115,63 @@ def resolve_image_input(image_value: str) -> str:
     return image_value
 
 
-def call_analyze(req: dict[str, Any]) -> dict[str, Any]:
-    prompt = req.get("prompt")
-    image = req.get("image")
-    if not prompt:
-        raise ValueError("prompt is required")
-    if not image:
-        raise ValueError("image is required")
+def extract_error_message(payload: Any) -> str:
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            message = error.get("message")
+            if isinstance(message, str) and message.strip():
+                return message.strip()
+        message = payload.get("message")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
+    return "Unknown error"
 
-    model = req.get("model", DEFAULT_MODEL)
-    base_url = req.get("base_url", DEFAULT_BASE_URL).rstrip("/")
-    image_url = resolve_image_input(image)
-    detail = req.get("detail", DEFAULT_DETAIL)
 
-    payload = {
+def extract_text_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = item.get("text")
+                if isinstance(text, str):
+                    return text
+        return json.dumps(content, ensure_ascii=True)
+    if content is None:
+        return ""
+    return json.dumps(content, ensure_ascii=True)
+
+
+def try_parse_json_text(text: str) -> Any | None:
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def build_payload(
+    req: dict[str, Any],
+    model: str,
+    image_url: str,
+    detail: str,
+    json_mode: bool,
+    schema_obj: dict[str, Any] | None,
+) -> dict[str, Any]:
+    prompt = req["prompt"]
+    if schema_obj:
+        prompt = (
+            f"{prompt}\n\n"
+            "Return ONLY JSON that matches the provided schema. "
+            "Do not include markdown or extra commentary."
+        )
+    elif json_mode:
+        prompt = f"{prompt}\n\nReturn ONLY valid JSON."
+
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [
             {
@@ -138,16 +186,86 @@ def call_analyze(req: dict[str, Any]) -> dict[str, Any]:
         "temperature": req.get("temperature", DEFAULT_TEMPERATURE),
     }
 
-    response = requests.post(
-        f"{base_url}/chat/completions",
+    if schema_obj:
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "image_understanding_result",
+                "schema": schema_obj,
+            },
+        }
+    elif json_mode:
+        payload["response_format"] = {"type": "json_object"}
+    return payload
+
+
+def _post_with_retry(
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    timeout_s: int,
+    max_retries: int,
+    retry_backoff_s: float,
+) -> requests.Response:
+    last_error: str | None = None
+    for attempt in range(max_retries + 1):
+        response = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
+        if response.status_code < 400:
+            return response
+
+        body: dict[str, Any] | None = None
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        error_message = extract_error_message(body) if body is not None else response.text[:400]
+        last_error = f"HTTP {response.status_code}: {error_message}"
+
+        if response.status_code not in RETRYABLE_STATUS or attempt >= max_retries:
+            raise RuntimeError(last_error)
+
+        time.sleep(retry_backoff_s * (2**attempt))
+
+    raise RuntimeError(last_error or "Request failed after retries")
+
+
+def call_analyze(req: dict[str, Any]) -> dict[str, Any]:
+    prompt = req.get("prompt")
+    image = req.get("image")
+    if not prompt:
+        raise ValueError("prompt is required")
+    if not image:
+        raise ValueError("image is required")
+
+    model = req.get("model", DEFAULT_MODEL)
+    base_url = req.get("base_url", DEFAULT_BASE_URL).rstrip("/")
+    image_url = resolve_image_input(image)
+    detail = req.get("detail", DEFAULT_DETAIL)
+    json_mode = bool(req.get("json_mode", False))
+    schema_obj = req.get("schema")
+    if schema_obj is not None and not isinstance(schema_obj, dict):
+        raise ValueError("schema must be a JSON object")
+
+    payload = build_payload(
+        req=req,
+        model=model,
+        image_url=image_url,
+        detail=detail,
+        json_mode=json_mode,
+        schema_obj=schema_obj,
+    )
+
+    response = _post_with_retry(
+        url=f"{base_url}/chat/completions",
         headers={
             "Authorization": f"Bearer {os.environ['DASHSCOPE_API_KEY']}",
             "Content-Type": "application/json",
         },
-        json=payload,
-        timeout=int(req.get("timeout_s", 120)),
+        payload=payload,
+        timeout_s=int(req.get("timeout_s", DEFAULT_TIMEOUT_S)),
+        max_retries=int(req.get("max_retries", DEFAULT_MAX_RETRIES)),
+        retry_backoff_s=float(req.get("retry_backoff_s", DEFAULT_RETRY_BACKOFF_S)),
     )
-    response.raise_for_status()
 
     data = response.json()
     choices = data.get("choices") or []
@@ -156,23 +274,36 @@ def call_analyze(req: dict[str, Any]) -> dict[str, Any]:
 
     message = choices[0].get("message") or {}
     content = message.get("content")
-    text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=True)
+    text = extract_text_content(content)
+    parsed_json = try_parse_json_text(text) if (json_mode or schema_obj is not None) else None
 
-    return {
+    result = {
         "text": text,
         "model": data.get("model", model),
         "usage": data.get("usage", {}),
     }
+    if parsed_json is not None:
+        result["json"] = parsed_json
+    return result
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze image with qwen3-vl-plus")
     parser.add_argument("--request", help="Inline JSON request string")
     parser.add_argument("--file", help="Path to JSON request file")
+    parser.add_argument("--json-mode", action="store_true", help="Request JSON-only output")
+    parser.add_argument("--schema", default="", help="Path to JSON Schema file for structured output")
     parser.add_argument(
         "--output",
         default="",
         help="Optional output JSON path, e.g. output/ai-multimodal-qwen-vl/result.json",
+    )
+    parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES, help="Retry count for 429/5xx")
+    parser.add_argument(
+        "--retry-backoff-s",
+        type=float,
+        default=DEFAULT_RETRY_BACKOFF_S,
+        help="Base retry backoff seconds (exponential)",
     )
     parser.add_argument("--print-response", action="store_true", help="Print normalized response JSON")
     args = parser.parse_args()
@@ -192,6 +323,13 @@ def main() -> None:
         sys.exit(1)
 
     req = load_request(args)
+    req["max_retries"] = args.max_retries
+    req["retry_backoff_s"] = args.retry_backoff_s
+    if args.json_mode:
+        req["json_mode"] = True
+    if args.schema:
+        schema_path = Path(args.schema)
+        req["schema"] = json.loads(schema_path.read_text(encoding="utf-8"))
     result = call_analyze(req)
 
     if args.output:

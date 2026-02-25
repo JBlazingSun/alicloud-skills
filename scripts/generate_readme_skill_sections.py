@@ -104,7 +104,17 @@ def ensure_markers(text: str, heading: str, begin: str, end: str) -> str:
         return text
     idx = text.find(heading)
     if idx < 0:
-        raise RuntimeError(f"Heading not found: {heading}")
+        # Fallback for README variants that do not include the expected heading.
+        # Keep generator idempotent by appending a dedicated section once.
+        section = [
+            "",
+            "## Skill Mapping (Skill -> Display Name)",
+            "",
+            begin,
+            end,
+            "",
+        ]
+        return text.rstrip() + "\n" + "\n".join(section)
     after_heading = text.find("\n", idx)
     if after_heading < 0:
         raise RuntimeError(f"Malformed heading block: {heading}")

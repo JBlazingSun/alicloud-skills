@@ -23,6 +23,19 @@ Category: test
 2) 发起请求或运行示例脚本。
 3) 记录：请求摘要 / 返回摘要 / 成功或失败原因。
 
+推荐直接运行：
+
+```bash
+python tests/ai/multimodal/alicloud-ai-multimodal-qwen-vl-test/scripts/smoke_test_qwen_vl.py \
+  --image output/ai-image-qwen-image/images/vl_test_cat.png
+```
+
+通过标准：
+
+- 返回 JSON 中 `status=pass`。
+- 输出文件 `output/ai-multimodal-qwen-vl/smoke-test/result.json` 存在。
+- 结果包含非空 `text`，且 `model` 与请求模型一致或同前缀。
+
 ## 结果记录模板
 
 - 时间：YYYY-MM-DD

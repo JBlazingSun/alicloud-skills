@@ -208,24 +208,75 @@ def _readme_lang(path: Path) -> str:
     return "zh"
 
 
-def render_table(rows: list[tuple[str, str, str, str]], lang: str) -> str:
+def _default_header(lang: str) -> list[str]:
     if lang == "en":
-        lines = ["| Category | Skill | Description | Path |", "| --- | --- | --- | --- |"]
-    elif lang == "zh-tw":
-        lines = ["| 分類 | 技能 | 技能描述 | 路徑 |", "| --- | --- | --- | --- |"]
+        return ["| Category | Skill | Description | Path |", "| --- | --- | --- | --- |"]
+    if lang == "zh-tw":
+        return ["| 分類 | 技能 | 技能描述 | 路徑 |", "| --- | --- | --- | --- |"]
+    return ["| 分类 | 技能 | 技能描述 | 路径 |", "| --- | --- | --- | --- |"]
+
+
+def _parse_table_row(line: str) -> tuple[str, str, str, str] | None:
+    if not line.strip().startswith("|"):
+        return None
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    if len(cells) < 4:
+        return None
+    category = cells[0]
+    name = cells[1]
+    description = "|".join(cells[2:-1]).strip()
+    path_cell = cells[-1]
+    path = path_cell.strip("`")
+    return category, name, description, path
+
+
+def _existing_table_data(
+    text: str,
+) -> tuple[list[str] | None, dict[tuple[str, str, str], str]]:
+    if BEGIN not in text or END not in text:
+        return None, {}
+    segment = text.split(BEGIN, 1)[1].split(END, 1)[0].strip()
+    lines = [line for line in segment.splitlines() if line.strip()]
+    header: list[str] | None = None
+    if len(lines) >= 2 and lines[0].strip().startswith("|") and lines[1].strip().startswith("|"):
+        header = [lines[0], lines[1]]
+        row_lines = lines[2:]
     else:
-        lines = ["| 分类 | 技能 | 技能描述 | 路径 |", "| --- | --- | --- | --- |"]
+        row_lines = lines
+
+    existing: dict[tuple[str, str, str], str] = {}
+    for line in row_lines:
+        row = _parse_table_row(line)
+        if not row:
+            continue
+        category, name, description, path = row
+        existing[(category, name, path)] = description
+    return header, existing
+
+
+def render_table(
+    rows: list[tuple[str, str, str, str]],
+    lang: str,
+    existing: dict[tuple[str, str, str], str] | None = None,
+    header: list[str] | None = None,
+) -> str:
+    lines = header[:] if header else _default_header(lang)
+    existing = existing or {}
 
     for category, name, path, description in rows:
-        localized = _translate_description(description, name, lang)
+        localized = existing.get((category, name, path))
+        if not localized:
+            localized = _translate_description(description, name, lang)
         lines.append(f"| {category} | {name} | {localized} | `{path}` |")
     return "\n".join(lines)
 
 
-def update_readme(path: Path, table: str) -> None:
+def update_readme(path: Path, rows: list[tuple[str, str, str, str]], lang: str) -> None:
     text = path.read_text(encoding="utf-8")
     if BEGIN not in text or END not in text:
         raise RuntimeError(f"Missing skill index markers in {path}")
+    header, existing = _existing_table_data(text)
+    table = render_table(rows, lang=lang, existing=existing, header=header)
     pattern = re.compile(
         re.escape(BEGIN) + r".*?" + re.escape(END),
         flags=re.S,
@@ -239,8 +290,7 @@ def main() -> None:
     rows = collect_skills()
     for readme in README_FILES:
         lang = _readme_lang(readme)
-        table = render_table(rows, lang)
-        update_readme(readme, table)
+        update_readme(readme, rows=rows, lang=lang)
 
 
 if __name__ == "__main__":

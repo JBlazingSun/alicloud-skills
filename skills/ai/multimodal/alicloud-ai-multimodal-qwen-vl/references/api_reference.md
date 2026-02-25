@@ -39,6 +39,39 @@
 - `usage` contains token statistics when provided.
 - `model` may return canonical model ID even if alias is used.
 
+## Structured output options
+
+- JSON mode:
+
+```json
+{
+  "response_format": {
+    "type": "json_object"
+  }
+}
+```
+
+- JSON Schema mode:
+
+```json
+{
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "image_understanding_result",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "amount": {"type": "number"}
+        },
+        "required": ["title"]
+      }
+    }
+  }
+}
+```
+
 ## Notes
 
 - For deterministic extraction tasks, lower `temperature` (for example `0` to `0.2`).

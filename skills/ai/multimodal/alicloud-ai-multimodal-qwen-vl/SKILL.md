@@ -46,6 +46,10 @@ Legacy names still seen in some workloads:
 - `max_tokens` (int, optional): default `512`.
 - `temperature` (float, optional): default `0.2`.
 - `detail` (string, optional): `auto`/`low`/`high`, default `auto`.
+- `json_mode` (bool, optional): return JSON-only response when possible.
+- `schema` (object, optional): JSON Schema for structured extraction.
+- `max_retries` (int, optional): retry count for `429/5xx`, default `2`.
+- `retry_backoff_s` (float, optional): exponential backoff base seconds, default `1.5`.
 
 ### Response
 
@@ -66,6 +70,24 @@ Using local image:
 ```bash
 python skills/ai/multimodal/alicloud-ai-multimodal-qwen-vl/scripts/analyze_image.py \
   --request '{"prompt":"提取图片中的关键信息","image":"./samples/invoice.png","model":"qwen3-vl-plus"}' \
+  --print-response
+```
+
+Structured extraction (JSON mode):
+
+```bash
+python skills/ai/multimodal/alicloud-ai-multimodal-qwen-vl/scripts/analyze_image.py \
+  --request '{"prompt":"提取字段: title, amount, date","image":"./samples/invoice.png"}' \
+  --json-mode \
+  --print-response
+```
+
+Structured extraction (JSON Schema):
+
+```bash
+python skills/ai/multimodal/alicloud-ai-multimodal-qwen-vl/scripts/analyze_image.py \
+  --request '{"prompt":"提取发票字段","image":"./samples/invoice.png"}' \
+  --schema skills/ai/multimodal/alicloud-ai-multimodal-qwen-vl/references/examples/invoice.schema.json \
   --print-response
 ```
 
@@ -95,6 +117,13 @@ curl -sS https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions \
 
 - If `--output` is set, JSON response is saved to that file.
 - Default output dir convention: `output/ai-multimodal-qwen-vl/`.
+
+## Smoke test
+
+```bash
+python tests/ai/multimodal/alicloud-ai-multimodal-qwen-vl-test/scripts/smoke_test_qwen_vl.py \
+  --image output/ai-image-qwen-image/images/vl_test_cat.png
+```
 
 ## Error handling
 
