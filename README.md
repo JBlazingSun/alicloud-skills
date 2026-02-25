@@ -22,6 +22,7 @@ Configure AccessKey (recommended):
 ```bash
 export ALICLOUD_ACCESS_KEY_ID="your-ak"
 export ALICLOUD_ACCESS_KEY_SECRET="your-sk"
+export ALICLOUD_SECURITY_TOKEN="your-sts-token" # optional, for STS
 export ALICLOUD_REGION_ID="cn-beijing"
 export DASHSCOPE_API_KEY="your-dashscope-api-key"
 ```
@@ -39,6 +40,8 @@ access_key_id = your-ak
 access_key_secret = your-sk
 dashscope_api_key = your-dashscope-api-key
 ```
+
+For STS, set `type = sts` and add `security_token = your-sts-token`.
 
 ## Examples (Docs Review & Benchmark)
 

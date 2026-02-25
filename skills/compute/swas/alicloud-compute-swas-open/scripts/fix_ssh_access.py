@@ -25,9 +25,12 @@ def create_client(region_id: str) -> SwasClient:
     )
     ak = os.getenv("ALICLOUD_ACCESS_KEY_ID") or os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
     sk = os.getenv("ALICLOUD_ACCESS_KEY_SECRET") or os.getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+    token = os.getenv("ALICLOUD_SECURITY_TOKEN") or os.getenv("ALIBABA_CLOUD_SECURITY_TOKEN")
     if ak and sk:
         config.access_key_id = ak
         config.access_key_secret = sk
+        if token:
+            config.security_token = token
     return SwasClient(config)
 
 

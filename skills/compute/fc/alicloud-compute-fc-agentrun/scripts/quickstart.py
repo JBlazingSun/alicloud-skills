@@ -29,12 +29,15 @@ def main() -> None:
     endpoint = get_env("AGENTRUN_ENDPOINT")
     access_key_id = get_env("ALICLOUD_ACCESS_KEY_ID")
     access_key_secret = get_env("ALICLOUD_ACCESS_KEY_SECRET")
+    security_token = os.getenv("ALICLOUD_SECURITY_TOKEN") or os.getenv("ALIBABA_CLOUD_SECURITY_TOKEN")
 
     config = open_api_models.Config(
         access_key_id=access_key_id,
         access_key_secret=access_key_secret,
         endpoint=endpoint,
     )
+    if security_token:
+        config.security_token = security_token
     client = AgentRunClient(config)
 
     request = agentrun_models.ListAgentRuntimesRequest()

@@ -25,6 +25,7 @@ npx skillfish add cinience/alicloud-skills --all -y --force
 ```bash
 export ALICLOUD_ACCESS_KEY_ID="你的AK"
 export ALICLOUD_ACCESS_KEY_SECRET="你的SK"
+export ALICLOUD_SECURITY_TOKEN="你的STS Token" # 可选，使用 STS 时填写
 export ALICLOUD_REGION_ID="cn-beijing"
 export DASHSCOPE_API_KEY="你的DashScope API Key"
 ```
@@ -42,6 +43,8 @@ access_key_id = 你的AK
 access_key_secret = 你的SK
 dashscope_api_key = 你的DashScope API Key
 ```
+
+如使用 STS，请设置 `type = sts` 并补充 `security_token = 你的STS Token`。
 
 
 ## 独立技能与提示词（示例）

@@ -6,6 +6,7 @@ Requires:
   - ALICLOUD_ACCESS_KEY_SECRET
   - TICKET_ENDPOINT (e.g. <product_code>.<region>.aliyuncs.com)
 Optional:
+  - ALICLOUD_SECURITY_TOKEN / ALIBABA_CLOUD_SECURITY_TOKEN (STS session token)
   - TICKET_VERSION (default: 2021-06-10)
   - TICKET_LANGUAGE (zh|en|jp)
   - TICKET_NAME (fuzzy name filter)
@@ -36,10 +37,11 @@ def main() -> None:
 
     access_key_id = get_env("ALICLOUD_ACCESS_KEY_ID")
     access_key_secret = get_env("ALICLOUD_ACCESS_KEY_SECRET")
+    security_token = os.getenv("ALICLOUD_SECURITY_TOKEN") or os.getenv("ALIBABA_CLOUD_SECURITY_TOKEN")
     endpoint = get_env("TICKET_ENDPOINT")
     version = os.getenv("TICKET_VERSION", "2021-06-10")
 
-    client = AcsClient(access_key_id, access_key_secret, "cn-hangzhou")
+    client = AcsClient(access_key_id, access_key_secret, "cn-hangzhou", security_token)
 
     request = CommonRequest()
     request.set_domain(endpoint)

@@ -8,6 +8,7 @@ Requires:
   - SUPPORT_VERSION (API version for Support service)
   - SUPPORT_GROUP_ID (OpenGroupId)
 Optional:
+  - ALICLOUD_SECURITY_TOKEN / ALIBABA_CLOUD_SECURITY_TOKEN (STS session token)
   - OUTPUT_DIR (default: output)
 """
 
@@ -57,11 +58,12 @@ def main() -> None:
 
     access_key_id = get_env("ALICLOUD_ACCESS_KEY_ID")
     access_key_secret = get_env("ALICLOUD_ACCESS_KEY_SECRET")
+    security_token = os.getenv("ALICLOUD_SECURITY_TOKEN") or os.getenv("ALIBABA_CLOUD_SECURITY_TOKEN")
     endpoint = get_env("SUPPORT_ENDPOINT")
     version = get_env("SUPPORT_VERSION")
     group_id = get_env("SUPPORT_GROUP_ID")
 
-    client = AcsClient(access_key_id, access_key_secret, "cn-hangzhou")
+    client = AcsClient(access_key_id, access_key_secret, "cn-hangzhou", security_token)
 
     request = CommonRequest()
     request.set_domain(endpoint)

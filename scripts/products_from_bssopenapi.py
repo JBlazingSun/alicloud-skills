@@ -5,6 +5,7 @@ Requires:
   - ALICLOUD_ACCESS_KEY_ID
   - ALICLOUD_ACCESS_KEY_SECRET
 Optional:
+  - ALICLOUD_SECURITY_TOKEN / ALIBABA_CLOUD_SECURITY_TOKEN (STS session token)
   - BSS_ENDPOINT (default: business.aliyuncs.com)
   - BSS_VERSION (default: 2017-12-14)
   - BSS_PAGE_SIZE (default: 50)
@@ -40,6 +41,7 @@ def main() -> None:
 
     access_key_id = os.getenv("ALICLOUD_ACCESS_KEY_ID")
     access_key_secret = os.getenv("ALICLOUD_ACCESS_KEY_SECRET")
+    security_token = os.getenv("ALICLOUD_SECURITY_TOKEN") or os.getenv("ALIBABA_CLOUD_SECURITY_TOKEN")
     if not access_key_id or not access_key_secret:
         print("Missing ALICLOUD_ACCESS_KEY_ID or ALICLOUD_ACCESS_KEY_SECRET", file=sys.stderr)
         sys.exit(1)
@@ -48,7 +50,7 @@ def main() -> None:
     version = os.getenv("BSS_VERSION", "2017-12-14")
     page_size = get_int("BSS_PAGE_SIZE", 50)
 
-    client = AcsClient(access_key_id, access_key_secret, "cn-hangzhou")
+    client = AcsClient(access_key_id, access_key_secret, "cn-hangzhou", security_token)
 
     products: list[dict] = []
     page_num = 1
