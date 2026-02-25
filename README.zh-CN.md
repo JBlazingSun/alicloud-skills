@@ -237,6 +237,7 @@ dashscope_api_key = 你的DashScope API Key
 | ai/image | alicloud-ai-image-qwen-image-edit | 技能 `alicloud-ai-image-qwen-image-edit` 的能力说明，详见对应 SKILL.md。 | `skills/ai/image/alicloud-ai-image-qwen-image-edit` |
 | ai/image | alicloud-ai-image-zimage-turbo | 技能 `alicloud-ai-image-zimage-turbo` 的能力说明，详见对应 SKILL.md。 | `skills/ai/image/alicloud-ai-image-zimage-turbo` |
 | ai/misc | alicloud-ai-misc-crawl-and-skill | 刷新 Model Studio 模型抓取结果并重新生成派生摘要及相关技能内容。 | `skills/ai/misc/alicloud-ai-misc-crawl-and-skill` |
+| ai/multimodal | alicloud-ai-multimodal-qwen-vl | 技能 `alicloud-ai-multimodal-qwen-vl` 的能力说明，详见对应 SKILL.md。 | `skills/ai/multimodal/alicloud-ai-multimodal-qwen-vl` |
 | ai/platform | alicloud-ai-pai-aiworkspace | 通过 OpenAPI/SDK 管理 Alibaba Cloud Platform for Artificial Intelligence PAI - AIWorkspace (AIWorkSpace)，用于资源查询、创建或更新配置、状态查询与故障排查。 | `skills/ai/platform/alicloud-ai-pai-aiworkspace` |
 | ai/recommendation | alicloud-ai-recommend-airec | 通过 OpenAPI/SDK 管理 Alibaba Cloud AIRec (Airec)，用于资源查询、创建或更新配置、状态查询与故障排查。 | `skills/ai/recommendation/alicloud-ai-recommend-airec` |
 | ai/search | alicloud-ai-search-dashvector | 使用 Python SDK 构建 DashVector 向量检索能力，支持集合创建、写入与相似度查询。 | `skills/ai/search/alicloud-ai-search-dashvector` |
