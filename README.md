@@ -16,7 +16,7 @@ including Model Studio, OSS, ECS, and more.
 Recommended install (all skills, skip prompts, overwrite existing):
 
 ```bash
-npx skillfish add cinience/alicloud-skills --all -y --force
+npx skills add cinience/alicloud-skills --all -y --force
 ```
 
 If you still see a selection prompt, press `a` to select all, then press Enter to submit.

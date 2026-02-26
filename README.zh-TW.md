@@ -14,7 +14,7 @@
 推薦安裝（一次性安裝全部、跳過確認、強制覆蓋）：
 
 ```bash
-npx skillfish add cinience/alicloud-skills --all -y --force
+npx skills add cinience/alicloud-skills --all -y --force
 ```
 
 如果仍出現選擇介面，按 `a` 全選後再按 Enter 送出。

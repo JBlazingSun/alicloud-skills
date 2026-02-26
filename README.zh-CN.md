@@ -17,7 +17,7 @@ Cloud Mind：把世界级云基建，折叠进你的AI对话框。
 推荐安装（一次性安装全部、跳过确认、强制覆盖）：
 
 ```bash
-npx skillfish add cinience/alicloud-skills --all -y --force
+npx skills add cinience/alicloud-skills --all -y --force
 ```
 
 如果仍出现选择界面，按 `a` 全选后回车提交。
