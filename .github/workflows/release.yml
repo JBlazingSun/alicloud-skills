@@ -1,12 +1,6 @@
 name: Build And Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag (e.g., v0.1.0)"
-        required: true
-        type: string
   push:
     tags:
       - "v*"
@@ -73,6 +67,25 @@ jobs:
           New-Item -ItemType Directory -Force -Path build/bin | Out-Null
           go build -o build/bin/alicloud-skills.exe ./cmd/alicloud-skills
 
+      - name: Build web + sync assets (unix)
+        if: runner.os != 'Windows'
+        run: |
+          NEXT_DESKTOP_EMBED=1 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:10112/ws pnpm --dir apps/web install --frozen-lockfile
+          NEXT_DESKTOP_EMBED=1 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:10112/ws pnpm --dir apps/web build
+          mkdir -p apps/desktop-agent/frontend/dist
+          cp -a apps/web/out/. apps/desktop-agent/frontend/dist/
+
+      - name: Build web + sync assets (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:NEXT_DESKTOP_EMBED = "1"
+          $env:NEXT_PUBLIC_WS_URL = "ws://127.0.0.1:10112/ws"
+          pnpm --dir apps/web install --frozen-lockfile
+          pnpm --dir apps/web build
+          New-Item -ItemType Directory -Force -Path apps/desktop-agent/frontend/dist | Out-Null
+          Copy-Item -Path apps/web/out/* -Destination apps/desktop-agent/frontend/dist -Recurse -Force
+
       - name: Build Desktop (linux)
         if: runner.os == 'Linux'
         run: |
@@ -91,12 +104,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path build/bin | Out-Null
           go build -tags "production" -o build/bin/alicloud-skills-desktop.exe ./apps/desktop-agent
-
-      - name: Build web (linux only)
-        if: runner.os == 'Linux'
-        run: |
-          pnpm --dir apps/web install --frozen-lockfile
-          pnpm --dir apps/web build
 
       - name: Collect artifacts (unix)
         if: runner.os != 'Windows'
@@ -141,6 +148,6 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           files: release-assets/*
