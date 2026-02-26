@@ -1,6 +1,10 @@
 # Alibaba Cloud 核心 AI Agent Skills
 
-简体中文（当前） | [English](README.md) | [繁體中文](README.zh-TW.md)
+## 语言
+
+[English](README.md) | **简体中文（当前）** | [繁體中文](README.zh-TW.md)
+
+快速入口：[快速开始](#快速开始) | [技能索引](#技能索引)
 
 Cloud Mind：把世界级云基建，折叠进你的AI对话框。
 

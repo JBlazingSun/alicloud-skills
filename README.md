@@ -1,6 +1,10 @@
 # Alibaba Cloud Core AI Agent Skills
 
-English | [Chinese (Simplified)](README.zh-CN.md) | [Chinese (Traditional)](README.zh-TW.md)
+## Language
+
+**English (current)** | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
+
+Quick links: [Quick Start](#quick-start) | [Skill Index](#skill-index)
 
 Cloud Mind: fold world-class cloud infrastructure into your AI chat box.
 

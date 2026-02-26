@@ -1,6 +1,10 @@
 # Alibaba Cloud 核心 AI Agent Skills
 
-繁體中文（目前） | [English](README.md) | [简体中文](README.zh-CN.md)
+## 語言
+
+[English](README.md) | [简体中文](README.zh-CN.md) | **繁體中文（目前）**
+
+快速入口：[快速開始](#快速開始) | [技能索引](#技能索引)
 
 這是一套精選的 **Alibaba Cloud 核心 AI Agent skills**，涵蓋關鍵產品線，
 包括 Model Studio、OSS、ECS 等。
