@@ -13,7 +13,7 @@ Use voice design models to create controllable synthetic voices from natural lan
 
 Use one of these exact model strings:
 - `qwen3-tts-vd-2026-01-26`
-- `qwen3-tts-vd-realtime-2025-12-16`
+- `qwen3-tts-vd-realtime-2026-01-15`
 
 ## Prerequisites
 

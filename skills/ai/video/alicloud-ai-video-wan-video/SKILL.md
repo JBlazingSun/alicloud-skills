@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-video-wan-video
-description: Generate videos with Model Studio DashScope SDK using the wan2.6-i2v-flash model. Use when implementing or documenting video.generate requests/responses, mapping prompt/negative_prompt/duration/fps/size/seed/reference_image/motion_strength, or integrating video generation into the video-agent pipeline.
+description: Generate videos with Model Studio DashScope SDK using Wan i2v models (wan2.6-i2v-flash, wan2.6-i2v, wan2.6-i2v-us). Use when implementing or documenting video.generate requests/responses, mapping prompt/negative_prompt/duration/fps/size/seed/reference_image/motion_strength, or integrating video generation into the video-agent pipeline.
 ---
 
 Category: provider
@@ -9,12 +9,12 @@ Category: provider
 
 Provide consistent video generation behavior for the video-agent pipeline by standardizing `video.generate` inputs/outputs and using DashScope SDK (Python) with the exact model name.
 
-## Critical model name
+## Critical model names
 
-Use ONLY this exact model string:
+Use one of these exact model strings:
 - `wan2.6-i2v-flash`
-
-Do not add date suffixes or aliases.
+- `wan2.6-i2v`
+- `wan2.6-i2v-us`
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ python -m pip install dashscope
 - `fps` (number, required)
 - `size` (string, required) e.g. `1280*720`
 - `seed` (int, optional)
-- `reference_image` (string | bytes, required for `wan2.6-i2v-flash`)
+- `reference_image` (string | bytes, required for i2v family models)
 - `motion_strength` (number, optional)
 
 ### Response
@@ -48,7 +48,7 @@ python -m pip install dashscope
 ## Quick start (Python + DashScope SDK)
 
 Video generation is usually asynchronous. Expect a task ID and poll until completion.
-Note: `wan2.6-i2v-flash` requires an input image; map `reference_image` to `img_url`.
+Note: Wan i2v models require an input image; map `reference_image` to `img_url`.
 
 ```python
 import os
@@ -59,7 +59,7 @@ from dashscope import VideoSynthesis
 
 def generate_video(req: dict) -> dict:
     payload = {
-        "model": "wan2.6-i2v-flash",
+        "model": req.get("model", "wan2.6-i2v-flash"),
         "prompt": req["prompt"],
         "negative_prompt": req.get("negative_prompt"),
         "duration": req.get("duration", 4),
@@ -95,7 +95,7 @@ import os
 from dashscope import VideoSynthesis
 
 task = VideoSynthesis.async_call(
-    model="wan2.6-i2v-flash",
+    model=req.get("model", "wan2.6-i2v-flash"),
     prompt=req["prompt"],
     img_url=req["reference_image"],
     duration=req.get("duration", 4),
@@ -128,7 +128,7 @@ video_url = final.output.get("video_url")
 
 ## Anti-patterns
 
-- Do not invent model names or aliases; use `wan2.6-i2v-flash` only.
+- Do not invent model names or aliases; use official Wan i2v model IDs only.
 - Do not block the UI without progress updates.
 - Do not retry blindly on 4xx; handle validation failures explicitly.
 

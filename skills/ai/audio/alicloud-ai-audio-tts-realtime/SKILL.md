@@ -15,6 +15,8 @@ Use one of these exact model strings:
 - `qwen3-tts-flash-realtime`
 - `qwen3-tts-instruct-flash-realtime`
 - `qwen3-tts-instruct-flash-realtime-2026-01-22`
+- `qwen3-tts-vd-realtime-2026-01-15`
+- `qwen3-tts-vc-realtime-2026-01-15`
 
 ## Prerequisites
 
