@@ -149,3 +149,7 @@ dashscope_api_key = 你的DashScope API Key
 - 所有臨時檔案與生成物必須寫入 `output/`。
 - 按技能劃分子目錄，例如 `output/<skill>/...`。
 - `output/` 會被 git 忽略，不允許提交。
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=cinience/alicloud-skills&type=Date)](https://star-history.com/#cinience/alicloud-skills&Date)

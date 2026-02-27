@@ -360,3 +360,7 @@ See: `examples/industry-use-cases.md`
 | `alicloud-security-kms` | Alibaba Cloud Security KMS |
 | `alicloud-storage-oss-ossutil` | Alibaba Cloud Storage OSS Ossutil |
 <!-- SKILL_MAPPING_END -->
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=cinience/alicloud-skills&type=Date)](https://star-history.com/#cinience/alicloud-skills&Date)

@@ -295,3 +295,7 @@ dashscope_api_key = 你的DashScope API Key
 - 所有临时文件与生成物必须写入 `output/`。
 - 按技能划分子目录，例如 `output/<skill>/...`。
 - `output/` 被 git 忽略，不允许提交。
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=cinience/alicloud-skills&type=Date)](https://star-history.com/#cinience/alicloud-skills&Date)
