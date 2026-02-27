@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"github.com/godeps/agentkit/pkg/config"
 	coreevents "github.com/godeps/agentkit/pkg/core/events"
 	"github.com/godeps/agentkit/pkg/model"
-	"github.com/godeps/agentkit/pkg/prompts"
+	runtimeskills "github.com/godeps/agentkit/pkg/runtime/skills"
 )
 
 const DefaultModel = "qwen3.5-plus"
@@ -30,10 +31,12 @@ Rules:
 - Respond in the same language as the user.`
 
 type Config struct {
-	RepoRoot   string
-	SkillsDirs []string
-	ModelName  string
-	APIKey     string
+	RepoRoot        string
+	ConfigRoot      string
+	SkillsDirs      []string
+	SkillsRecursive *bool
+	ModelName       string
+	APIKey          string
 }
 
 type Engine struct {
@@ -81,23 +84,29 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, errors.New("DASHSCOPE_API_KEY is not set")
 	}
 
-	regs, metas := DiscoverSkills(cfg.SkillsDirs)
+	settingsRoot := strings.TrimSpace(cfg.ConfigRoot)
+	if settingsRoot == "" {
+		settingsRoot = resolveSettingsRoot()
+	}
+	metas, diagErrs := DiscoverSkills(cfg.RepoRoot, settingsRoot, cfg.SkillsDirs, cfg.SkillsRecursive)
 	if len(metas) == 0 {
 		return nil, fmt.Errorf("no skills found in %s", strings.Join(cfg.SkillsDirs, ", "))
 	}
-	settingsRoot := resolveSettingsRoot()
+	for _, d := range diagErrs {
+		log.Printf("skill discovery warning: %v", d)
+	}
 	runtimeOverrides := buildRuntimeOverrides(settingsRoot)
-	bridgeRoot := ensureAgentkitBridgeRoot()
 
 	var eng *Engine
 	rt, err := api.New(ctx, api.Options{
 		EntryPoint:          api.EntryPointCLI,
 		ProjectRoot:         cfg.RepoRoot,
-		SettingsLoader:      &config.SettingsLoader{ProjectRoot: bridgeRoot},
+		ConfigRoot:          settingsRoot,
 		ModelFactory:        &model.OpenAIProvider{APIKey: cfg.APIKey, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", ModelName: cfg.ModelName},
 		SystemPrompt:        BuildSystemPrompt(DefaultSystemPrompt, metas),
 		SettingsOverrides:   runtimeOverrides,
-		Skills:              regs,
+		SkillsDirs:          cfg.SkillsDirs,
+		SkillsRecursive:     cfg.SkillsRecursive,
 		EnabledBuiltinTools: []string{"bash", "file_read", "file_write", "glob"},
 		DefaultEnableCache:  true,
 		TokenTracking:       true,
@@ -147,7 +156,10 @@ func (e *Engine) EnrichPrompt(prompt string) string {
 	if name := MatchSkill(prompt, e.metas); name != "" {
 		for _, m := range e.metas {
 			if m.Name == name {
-				path := filepath.Join(m.SkillDir, m.Name, "SKILL.md")
+				path := m.SkillPath
+				if strings.TrimSpace(path) == "" {
+					path = filepath.Join(m.SkillDir, m.Name, "SKILL.md")
+				}
 				if data, err := os.ReadFile(path); err == nil {
 					return fmt.Sprintf("Skill instructions already loaded:\n\n<skill name=%q>\n%s\n</skill>\n\nUser request:\n%s", m.Name, strings.TrimSpace(string(data)), prompt)
 				}
@@ -251,22 +263,6 @@ func resolveBrandHome() string {
 	return filepath.Join(home, ".alicloud-skills")
 }
 
-func ensureFile(path string, content []byte) error {
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	return os.WriteFile(path, content, 0o644)
-}
-
-func ensureAgentkitBridgeRoot() string {
-	bridgeRoot := filepath.Join(os.TempDir(), "alicloud-skills-agentkit-settings")
-	claudeDir := filepath.Join(bridgeRoot, ".claude")
-	_ = os.MkdirAll(claudeDir, 0o755)
-	_ = ensureFile(filepath.Join(claudeDir, "settings.json"), []byte("{}\n"))
-	_ = ensureFile(filepath.Join(claudeDir, "settings.local.json"), []byte("{}\n"))
-	return bridgeRoot
-}
-
 func buildRuntimeOverrides(settingsRoot string) *config.Settings {
 	merged := &config.Settings{}
 	if cfg, err := loadSettingsJSON(filepath.Join(settingsRoot, "settings.json")); err == nil && cfg != nil {
@@ -306,44 +302,27 @@ func loadSettingsJSON(path string) (*config.Settings, error) {
 	return &s, nil
 }
 
-func DiscoverSkills(skillsDirs []string) ([]api.SkillRegistration, []SkillMeta) {
-	var regs []api.SkillRegistration
+func DiscoverSkills(projectRoot, configRoot string, skillsDirs []string, recursive *bool) ([]SkillMeta, []error) {
 	var metas []SkillMeta
-	seen := map[string]string{}
-
-	for _, dir := range skillsDirs {
-		stat, err := os.Stat(dir)
-		if err != nil || !stat.IsDir() {
-			continue
+	regs, errs := runtimeskills.LoadFromFS(runtimeskills.LoaderOptions{
+		ProjectRoot: projectRoot,
+		ConfigRoot:  configRoot,
+		Directories: skillsDirs,
+		Recursive:   recursive,
+	})
+	for _, reg := range regs {
+		source, _ := reg.Definition.Metadata["source"]
+		meta := SkillMeta{
+			Name:        reg.Definition.Name,
+			Description: reg.Definition.Description,
+			SkillPath:   source,
 		}
-
-		abs, err := filepath.Abs(dir)
-		if err != nil {
-			continue
+		if strings.TrimSpace(source) != "" {
+			meta.SkillDir = filepath.Dir(filepath.Dir(source))
 		}
-		rel, err := filepath.Rel(string(filepath.Separator), abs)
-		if err != nil {
-			continue
-		}
-
-		builtins := prompts.ParseWithOptions(os.DirFS(string(filepath.Separator)), prompts.ParseOptions{
-			SkillsDir: filepath.ToSlash(rel),
-		})
-
-		for _, reg := range builtins.Skills {
-			if prev, ok := seen[reg.Definition.Name]; ok {
-				_ = prev
-				continue
-			}
-			def := reg.Definition
-			def.DisableAutoActivation = true
-			regs = append(regs, api.SkillRegistration{Definition: def, Handler: reg.Handler})
-			metas = append(metas, SkillMeta{Name: def.Name, Description: def.Description, SkillDir: dir})
-			seen[def.Name] = dir
-		}
+		metas = append(metas, meta)
 	}
-
-	return regs, metas
+	return metas, errs
 }
 
 func ResolveRepoRoot(cwd string) string {

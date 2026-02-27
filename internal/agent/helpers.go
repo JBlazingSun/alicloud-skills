@@ -11,6 +11,7 @@ type SkillMeta struct {
 	Name        string
 	Description string
 	SkillDir    string
+	SkillPath   string
 }
 
 func ResolveDefaultSkillsDirs(repoRoot, home string) []string {

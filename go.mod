@@ -3,7 +3,7 @@ module github.com/cinience/alicloud-skills
 go 1.24.0
 
 require (
-	github.com/godeps/agentkit v0.1.0
+	github.com/godeps/agentkit v0.1.1-0.20260227225231-68c9fb78c3a7
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/wailsapp/wails/v2 v2.11.0
