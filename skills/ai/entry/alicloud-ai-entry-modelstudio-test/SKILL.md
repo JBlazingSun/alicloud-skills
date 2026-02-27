@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-entry-modelstudio-test
-description: Run a minimal test matrix for the Model Studio skills that exist in this repo (image/video/TTS and newly added edit/realtime/voice variants). Use to execute one small request per skill and record results.
+description: Run a minimal test matrix for the Model Studio skills that exist in this repo (image/video/TTS/ASR and newly added edit/realtime/voice variants). Use to execute one small request per skill and record results.
 ---
 
 Category: task
@@ -27,9 +27,10 @@ python -m pip install dashscope
 3) 文生视频/图生视频（i2v） → `skills/ai/video/alicloud-ai-video-wan-video/`
 4) 参考生视频（r2v） → `skills/ai/video/alicloud-ai-video-wan-r2v/`
 5) 语音合成 TTS → `skills/ai/audio/alicloud-ai-audio-tts/`
-6) 实时语音合成 → `skills/ai/audio/alicloud-ai-audio-tts-realtime/`
-7) 音色复刻（Voice Clone） → `skills/ai/audio/alicloud-ai-audio-tts-voice-clone/`
-8) 音色设计（Voice Design） → `skills/ai/audio/alicloud-ai-audio-tts-voice-design/`
+6) 语音识别/转写 ASR（非实时） → `skills/ai/audio/alicloud-ai-audio-asr/`
+7) 实时语音合成 → `skills/ai/audio/alicloud-ai-audio-tts-realtime/`
+8) 音色复刻（Voice Clone） → `skills/ai/audio/alicloud-ai-audio-tts-voice-clone/`
+9) 音色设计（Voice Design） → `skills/ai/audio/alicloud-ai-audio-tts-voice-design/`
 
 若需新增能力测试，请先生成对应技能（可用 `skills/ai/misc/alicloud-ai-misc-crawl-and-skill/` 更新模型清单）。
 
@@ -57,6 +58,7 @@ python -m pip install dashscope
 | 图生视频（i2v） | alicloud-ai-video-wan-video | <model-id> | ... | ... | pass/fail | ... |
 | 参考生视频（r2v） | alicloud-ai-video-wan-r2v | <model-id> | ... | ... | pass/fail | ... |
 | 语音合成 | alicloud-ai-audio-tts | <model-id> | ... | ... | pass/fail | ... |
+| 语音识别（非实时） | alicloud-ai-audio-asr | <model-id> | ... | ... | pass/fail | ... |
 | 实时语音合成 | alicloud-ai-audio-tts-realtime | <model-id> | ... | ... | pass/fail | ... |
 | 音色复刻 | alicloud-ai-audio-tts-voice-clone | <model-id> | ... | ... | pass/fail | ... |
 | 音色设计 | alicloud-ai-audio-tts-voice-design | <model-id> | ... | ... | pass/fail | ... |

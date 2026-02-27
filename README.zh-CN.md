@@ -50,6 +50,26 @@ dashscope_api_key = 你的DashScope API Key
 
 如使用 STS，请设置 `type = sts` 并补充 `security_token = 你的STS Token`。
 
+### CLI 配置优先级（alicloud-skills）
+
+配置优先级（从高到低）：
+
+1. CLI 参数
+2. 环境变量
+3. `settings.local.json`
+4. `settings.json`
+5. 内置默认值
+
+推荐使用的参数：
+
+- `--config-root`
+- `--skills-dir`（可重复）
+- `--skills-recursive`
+- `--timeout-ms`
+- `--session-id`
+- `--print-effective-config`
+- `--verbose`
+
 
 ## 独立技能与提示词（示例）
 
@@ -229,13 +249,14 @@ dashscope_api_key = 你的DashScope API Key
 <!-- SKILL_INDEX_BEGIN -->
 | 分类 | 技能 | 技能描述 | 路径 |
 | --- | --- | --- | --- |
+| ai/audio | alicloud-ai-audio-asr | 使用 Alibaba Cloud Model Studio Qwen ASR 模型进行非实时语音识别与转写，支持短音频同步识别和长音频异步转写。 | `skills/ai/audio/alicloud-ai-audio-asr` |
 | ai/audio | alicloud-ai-audio-tts | 使用 Model Studio DashScope Qwen TTS 模型生成人声语音，适用于文本转语音与配音场景。 | `skills/ai/audio/alicloud-ai-audio-tts` |
 | ai/audio | alicloud-ai-audio-tts-realtime | 使用 Alibaba Cloud Model Studio Qwen TTS Realtime 模型进行实时语音合成。 | `skills/ai/audio/alicloud-ai-audio-tts-realtime` |
 | ai/audio | alicloud-ai-audio-tts-voice-clone | 使用 Alibaba Cloud Model Studio Qwen TTS VC 模型执行声音克隆流程。 | `skills/ai/audio/alicloud-ai-audio-tts-voice-clone` |
 | ai/audio | alicloud-ai-audio-tts-voice-design | 使用 Alibaba Cloud Model Studio Qwen TTS VD 模型执行声音设计流程。 | `skills/ai/audio/alicloud-ai-audio-tts-voice-design` |
 | ai/content | alicloud-ai-content-aicontent | 通过 OpenAPI/SDK 管理 Alibaba Cloud AIContent (AiContent)，用于资源查询、创建或更新配置、状态查询与故障排查。 | `skills/ai/content/alicloud-ai-content-aicontent` |
 | ai/content | alicloud-ai-content-aimiaobi | 通过 OpenAPI/SDK 管理 Alibaba Cloud Quan Miao (AiMiaoBi)，用于资源查询、创建或更新配置、状态查询与故障排查。 | `skills/ai/content/alicloud-ai-content-aimiaobi` |
-| ai/entry | alicloud-ai-entry-modelstudio | 将 Alibaba Cloud Model Studio 请求路由到最合适的本地技能（图像、视频、TTS 等）。 | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
+| ai/entry | alicloud-ai-entry-modelstudio | 将 Alibaba Cloud Model Studio 请求路由到最合适的本地技能（图像、视频、TTS、ASR 等）。 | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
 | ai/entry | alicloud-ai-entry-modelstudio-test | 为仓库中的 Model Studio 技能执行最小化测试矩阵并记录结果。 | `skills/ai/entry/alicloud-ai-entry-modelstudio-test` |
 | ai/image | alicloud-ai-image-qwen-image | 通过 Model Studio DashScope SDK 进行图像生成，覆盖 prompt、size、seed 等核心参数。 | `skills/ai/image/alicloud-ai-image-qwen-image` |
 | ai/image | alicloud-ai-image-qwen-image-edit | 技能 `alicloud-ai-image-qwen-image-edit` 的能力说明，详见对应 SKILL.md。 | `skills/ai/image/alicloud-ai-image-qwen-image-edit` |

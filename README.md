@@ -49,6 +49,26 @@ dashscope_api_key = your-dashscope-api-key
 
 For STS, set `type = sts` and add `security_token = your-sts-token`.
 
+### CLI Precedence (alicloud-skills)
+
+Configuration precedence (high to low):
+
+1. CLI flags
+2. Environment variables
+3. `settings.local.json`
+4. `settings.json`
+5. Built-in defaults
+
+Recommended flags:
+
+- `--config-root`
+- `--skills-dir` (repeatable)
+- `--skills-recursive`
+- `--timeout-ms`
+- `--session-id`
+- `--print-effective-config`
+- `--verbose`
+
 ## Examples (Docs Review & Benchmark)
 
 1) Product docs + API docs review
@@ -239,14 +259,15 @@ Return key status, audit results, and remediation suggestions."
 <!-- SKILL_INDEX_BEGIN -->
 | Category | Skill | Description | Path |
 | --- | --- | --- | --- |
+| ai/audio | alicloud-ai-audio-asr | Transcribe non-realtime speech with Alibaba Cloud Model Studio Qwen ASR models (`qwen-audio-asr`, `qwen-audio-asr-filetrans`). Use when converting recorded audio files to text, generating transcripts with timestamps, or documenting DashScope ASR request/response fields. | `skills/ai/audio/alicloud-ai-audio-asr` |
 | ai/audio | alicloud-ai-audio-tts | Generate human-like speech audio with Model Studio DashScope Qwen TTS models (qwen3-tts-flash, qwen3-tts-instruct-flash). Use when converting text to speech, producing voice lines for short drama/news videos, or documenting TTS request/response fields for DashScope. | `skills/ai/audio/alicloud-ai-audio-tts` |
 | ai/audio | alicloud-ai-audio-tts-realtime | Real-time speech synthesis with Alibaba Cloud Model Studio Qwen TTS Realtime models. Use when low-latency interactive speech is required, including instruction-controlled realtime synthesis. | `skills/ai/audio/alicloud-ai-audio-tts-realtime` |
 | ai/audio | alicloud-ai-audio-tts-voice-clone | Voice cloning workflows with Alibaba Cloud Model Studio Qwen TTS VC models. Use when creating cloned voices from sample audio and synthesizing text with cloned timbre. | `skills/ai/audio/alicloud-ai-audio-tts-voice-clone` |
 | ai/audio | alicloud-ai-audio-tts-voice-design | Voice design workflows with Alibaba Cloud Model Studio Qwen TTS VD models. Use when creating custom synthetic voices from text descriptions and using them for speech synthesis. | `skills/ai/audio/alicloud-ai-audio-tts-voice-design` |
 | ai/content | alicloud-ai-content-aicontent | Manage Alibaba Cloud AIContent (AiContent) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product. | `skills/ai/content/alicloud-ai-content-aicontent` |
 | ai/content | alicloud-ai-content-aimiaobi | Manage Alibaba Cloud Quan Miao (AiMiaoBi) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product. | `skills/ai/content/alicloud-ai-content-aimiaobi` |
-| ai/entry | alicloud-ai-entry-modelstudio | Route Alibaba Cloud Model Studio requests to the right local skill (Qwen Image, Qwen Image Edit, Wan Video, Wan R2V, Qwen TTS and advanced TTS variants). Use when the user asks for Model Studio without specifying a capability. | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
-| ai/entry | alicloud-ai-entry-modelstudio-test | Run a minimal test matrix for the Model Studio skills that exist in this repo (image/video/TTS and newly added edit/realtime/voice variants). Use to execute one small request per skill and record results. | `skills/ai/entry/alicloud-ai-entry-modelstudio-test` |
+| ai/entry | alicloud-ai-entry-modelstudio | Route Alibaba Cloud Model Studio requests to the right local skill (Qwen Image, Qwen Image Edit, Wan Video, Wan R2V, Qwen TTS, Qwen ASR and advanced TTS variants). Use when the user asks for Model Studio without specifying a capability. | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
+| ai/entry | alicloud-ai-entry-modelstudio-test | Run a minimal test matrix for the Model Studio skills that exist in this repo (image/video/TTS/ASR and newly added edit/realtime/voice variants). Use to execute one small request per skill and record results. | `skills/ai/entry/alicloud-ai-entry-modelstudio-test` |
 | ai/image | alicloud-ai-image-qwen-image | Generate images with Model Studio DashScope SDK using Qwen Image generation models (qwen-image-max, qwen-image-plus-2026-01-09). Use when implementing or documenting image.generate requests/responses, mapping prompt/negative_prompt/size/seed/reference_image, or integrating image generation into the video-agent pipeline. | `skills/ai/image/alicloud-ai-image-qwen-image` |
 | ai/image | alicloud-ai-image-qwen-image-edit | Edit images with Alibaba Cloud Model Studio Qwen Image Edit Max (qwen-image-edit-max). Use when modifying existing images (inpaint, replace, style transfer, local edits), preserving subject consistency, or documenting image edit request/response mappings. | `skills/ai/image/alicloud-ai-image-qwen-image-edit` |
 | ai/image | alicloud-ai-image-zimage-turbo | Generate images with Alibaba Cloud Model Studio Z-Image Turbo (z-image-turbo) via DashScope multimodal-generation API. Use when creating text-to-image outputs, controlling size/seed/prompt_extend, or documenting request/response mapping for Z-Image. | `skills/ai/image/alicloud-ai-image-zimage-turbo` |
@@ -311,6 +332,7 @@ See: `examples/industry-use-cases.md`
 <!-- SKILL_MAPPING_BEGIN -->
 | Skill | Display Name |
 | --- | --- |
+| `alicloud-ai-audio-asr` | Alibaba Cloud AI Audio ASR |
 | `alicloud-ai-audio-tts` | Alibaba Cloud AI Audio TTS |
 | `alicloud-ai-audio-tts-realtime` | Alibaba Cloud AI Audio TTS Realtime |
 | `alicloud-ai-audio-tts-voice-clone` | Alibaba Cloud AI Audio TTS Voice Clone |

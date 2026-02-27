@@ -83,13 +83,14 @@ dashscope_api_key = 你的DashScope API Key
 <!-- SKILL_INDEX_BEGIN -->
 | 分類 | 技能 | 技能描述 | 路徑 |
 | --- | --- | --- | --- |
+| ai/audio | alicloud-ai-audio-asr | 使用 Alibaba Cloud Model Studio Qwen ASR 模型進行非即時語音辨識與轉寫，支援短音訊同步辨識與長音訊非同步轉寫。 | `skills/ai/audio/alicloud-ai-audio-asr` |
 | ai/audio | alicloud-ai-audio-tts | 使用 Model Studio DashScope Qwen TTS 模型生成人聲語音，適用於文字轉語音與配音場景。 | `skills/ai/audio/alicloud-ai-audio-tts` |
 | ai/audio | alicloud-ai-audio-tts-realtime | 使用 Alibaba Cloud Model Studio Qwen TTS Realtime 模型進行即時語音合成。 | `skills/ai/audio/alicloud-ai-audio-tts-realtime` |
 | ai/audio | alicloud-ai-audio-tts-voice-clone | 使用 Alibaba Cloud Model Studio Qwen TTS VC 模型執行聲音克隆流程。 | `skills/ai/audio/alicloud-ai-audio-tts-voice-clone` |
 | ai/audio | alicloud-ai-audio-tts-voice-design | 使用 Alibaba Cloud Model Studio Qwen TTS VD 模型執行聲音設計流程。 | `skills/ai/audio/alicloud-ai-audio-tts-voice-design` |
 | ai/content | alicloud-ai-content-aicontent | 透過 OpenAPI/SDK 管理 Alibaba Cloud AIContent (AiContent)，用於資源查詢、建立或更新配置、狀態查詢與故障排查。 | `skills/ai/content/alicloud-ai-content-aicontent` |
 | ai/content | alicloud-ai-content-aimiaobi | 透過 OpenAPI/SDK 管理 Alibaba Cloud Quan Miao (AiMiaoBi)，用於資源查詢、建立或更新配置、狀態查詢與故障排查。 | `skills/ai/content/alicloud-ai-content-aimiaobi` |
-| ai/entry | alicloud-ai-entry-modelstudio | 將 Alibaba Cloud Model Studio 請求路由到最合適的本地技能（圖像、影片、TTS 等）。 | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
+| ai/entry | alicloud-ai-entry-modelstudio | 將 Alibaba Cloud Model Studio 請求路由到最合適的本地技能（圖像、影片、TTS、ASR 等）。 | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
 | ai/entry | alicloud-ai-entry-modelstudio-test | 為倉庫中的 Model Studio 技能執行最小化測試矩陣並記錄結果。 | `skills/ai/entry/alicloud-ai-entry-modelstudio-test` |
 | ai/image | alicloud-ai-image-qwen-image | 透過 Model Studio DashScope SDK 進行圖像生成，涵蓋 prompt、size、seed 等核心參數。 | `skills/ai/image/alicloud-ai-image-qwen-image` |
 | ai/image | alicloud-ai-image-qwen-image-edit | 技能 `alicloud-ai-image-qwen-image-edit` 的能力說明，詳見對應 SKILL.md。 | `skills/ai/image/alicloud-ai-image-qwen-image-edit` |
