@@ -49,6 +49,9 @@ type serverState struct {
 	threadProjects  map[string]string
 	recentPaths     []string
 	favoritePaths   []string
+
+	tasks       map[string]taskSpec
+	taskRunning map[string]bool
 }
 
 type workspaceInfo struct {
@@ -94,6 +97,7 @@ type persistedState struct {
 	ThreadProjects  map[string]string       `json:"threadProjects"`
 	RecentPaths     []string                `json:"recentPaths"`
 	FavoritePaths   []string                `json:"favoritePaths"`
+	Tasks           []taskSpec              `json:"tasks"`
 }
 
 type persistedSession struct {
@@ -151,6 +155,8 @@ func newRPCServer(addr string, eng *agent.Engine, repoRoot string) *rpcServer {
 		},
 		config:         string(cfgBytes),
 		threadProjects: map[string]string{},
+		tasks:          map[string]taskSpec{},
+		taskRunning:    map[string]bool{},
 	}
 	st.workspaces = discoverInitialWorkspaces(repoRoot)
 	if len(st.workspaces) > 0 {
@@ -183,6 +189,7 @@ func (s *rpcServer) start() error {
 		_ = s.httpSrv.ListenAndServe()
 	}()
 	go s.expireRoomOwners()
+	go s.runTaskScheduler()
 	return nil
 }
 
@@ -370,6 +377,18 @@ func (s *rpcServer) handleMethod(clientID, method string, params map[string]any)
 			force = b
 		}
 		return s.worktreeRemove(asString(params["sourcePath"]), asString(params["path"]), force)
+	case "task/list":
+		return s.taskList(), nil
+	case "task/create":
+		return s.taskCreate(params)
+	case "task/update":
+		return s.taskUpdate(params)
+	case "task/delete":
+		return s.taskDelete(asString(params["id"]))
+	case "task/toggle":
+		return s.taskToggle(asString(params["id"]), params["enabled"])
+	case "task/run":
+		return s.taskRun(asString(params["id"]))
 	default:
 		return nil, rpcErr(-32601, "method not found: "+method, nil)
 	}
@@ -538,11 +557,11 @@ func (s *rpcServer) startTurn(clientID, method string, params map[string]any) (a
 	s.notifySubscribers(threadID, "room/event", map[string]any{"item": userItem, "cursor": userItem.Cursor})
 	s.notifySubscribers(threadID, "turn/started", map[string]any{"threadId": threadID, "turnId": turnID})
 
-	go s.runAssistantTurn(threadID, turnID, text, cwd)
+	go s.runAssistantTurn(threadID, turnID, text, cwd, nil)
 	return map[string]any{"ok": true}, nil
 }
 
-func (s *rpcServer) runAssistantTurn(threadID, turnID, prompt, cwd string) {
+func (s *rpcServer) runAssistantTurn(threadID, turnID, prompt, cwd string, onFinish func(status, errMsg string)) {
 	s.state.mu.RLock()
 	sessionID := s.state.threadSession[threadID]
 	eng := s.state.engine
@@ -563,11 +582,15 @@ func (s *rpcServer) runAssistantTurn(threadID, turnID, prompt, cwd string) {
 	if err != nil {
 		s.notifySubscribers(threadID, "error", map[string]any{"message": err.Error()})
 		s.notifySubscribers(threadID, "turn/finished", map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "status": "error", "error": map[string]any{"message": err.Error()}}})
+		if onFinish != nil {
+			onFinish("error", err.Error())
+		}
 		return
 	}
 
 	assistantID := "msg-" + uuid.NewString()
 	var buf strings.Builder
+	var streamErr string
 	toolArgsByIndex := map[int]*strings.Builder{}
 	for evt := range ch {
 		switch evt.Type {
@@ -621,6 +644,7 @@ func (s *rpcServer) runAssistantTurn(threadID, turnID, prompt, cwd string) {
 			if evt.Output != nil {
 				errText := fmt.Sprintf("%v", evt.Output)
 				s.notifySubscribers(threadID, "error", map[string]any{"message": errText})
+				streamErr = errText
 			}
 		}
 	}
@@ -631,7 +655,14 @@ func (s *rpcServer) runAssistantTurn(threadID, turnID, prompt, cwd string) {
 	}
 	assistantItem := s.appendItemWithID(threadID, assistantID, "assistant", content, turnID, nil)
 	s.notifySubscribers(threadID, "room/event", map[string]any{"item": assistantItem, "cursor": assistantItem.Cursor})
-	s.notifySubscribers(threadID, "turn/finished", map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "status": "completed"}})
+	status := "completed"
+	if streamErr != "" {
+		status = "error"
+	}
+	s.notifySubscribers(threadID, "turn/finished", map[string]any{"threadId": threadID, "turn": map[string]any{"id": turnID, "status": status}})
+	if onFinish != nil {
+		onFinish(status, streamErr)
+	}
 }
 
 func (s *rpcServer) appendItem(threadID, role, content, turnID string, raw any) threadItem {
@@ -911,6 +942,279 @@ func (s *rpcServer) workspaceListLocked() map[string]any {
 	}
 }
 
+func (s *rpcServer) taskList() map[string]any {
+	s.state.mu.RLock()
+	tasks := make([]taskSpec, 0, len(s.state.tasks))
+	for _, task := range s.state.tasks {
+		tasks = append(tasks, task)
+	}
+	s.state.mu.RUnlock()
+	sort.SliceStable(tasks, func(i, j int) bool { return tasks[i].CreatedAt > tasks[j].CreatedAt })
+	return map[string]any{"tasks": tasks}
+}
+
+func (s *rpcServer) taskCreate(params map[string]any) (map[string]any, *rpcError) {
+	name := asString(params["name"])
+	prompt := asString(params["prompt"])
+	scheduleMinutes := asPositiveIntOrDefault(params["scheduleMinutes"], 5)
+	if name == "" || prompt == "" {
+		return nil, rpcErr(-32602, "name and prompt are required", nil)
+	}
+	workspacePath := absPathOrEmpty(params["workspacePath"])
+	threadID := asString(params["threadId"])
+	now := time.Now().UTC()
+	task := taskSpec{
+		ID:              "task-" + uuid.NewString(),
+		Name:            name,
+		Prompt:          prompt,
+		WorkspacePath:   workspacePath,
+		ThreadID:        threadID,
+		ScheduleMinutes: scheduleMinutes,
+		Enabled:         boolOrDefault(params["enabled"], true),
+		CreatedAt:       now.Format(time.RFC3339),
+		UpdatedAt:       now.Format(time.RFC3339),
+		LastRunStatus:   "idle",
+	}
+	if task.Enabled {
+		task.NextRunAt = now.Add(time.Duration(task.ScheduleMinutes) * time.Minute).Format(time.RFC3339)
+	}
+
+	s.state.mu.Lock()
+	s.state.tasks[task.ID] = task
+	s.state.mu.Unlock()
+	s.persistState()
+	return map[string]any{"task": task}, nil
+}
+
+func (s *rpcServer) taskUpdate(params map[string]any) (map[string]any, *rpcError) {
+	id := asString(params["id"])
+	if id == "" {
+		return nil, rpcErr(-32602, "id is required", nil)
+	}
+	s.state.mu.Lock()
+	task, ok := s.state.tasks[id]
+	if !ok {
+		s.state.mu.Unlock()
+		return nil, rpcErr(-32004, "task not found", nil)
+	}
+	if name := asString(params["name"]); name != "" {
+		task.Name = name
+	}
+	if prompt := asString(params["prompt"]); prompt != "" {
+		task.Prompt = prompt
+	}
+	if path, exists := params["workspacePath"]; exists {
+		task.WorkspacePath = absPathOrEmpty(path)
+	}
+	if threadID, exists := params["threadId"]; exists {
+		task.ThreadID = asString(threadID)
+	}
+	if n, ok := asInt(params["scheduleMinutes"]); ok && n > 0 {
+		task.ScheduleMinutes = n
+	}
+	if enabled, ok := params["enabled"].(bool); ok {
+		task.Enabled = enabled
+	}
+	now := time.Now().UTC()
+	task.UpdatedAt = now.Format(time.RFC3339)
+	if task.Enabled {
+		next := parseRFC3339(task.NextRunAt)
+		if next.IsZero() || next.Before(now) {
+			task.NextRunAt = now.Add(time.Duration(task.ScheduleMinutes) * time.Minute).Format(time.RFC3339)
+		}
+	} else {
+		task.NextRunAt = ""
+	}
+	s.state.tasks[id] = task
+	s.state.mu.Unlock()
+	s.persistState()
+	return map[string]any{"task": task}, nil
+}
+
+func (s *rpcServer) taskDelete(id string) (map[string]any, *rpcError) {
+	if id == "" {
+		return nil, rpcErr(-32602, "id is required", nil)
+	}
+	s.state.mu.Lock()
+	if _, ok := s.state.tasks[id]; !ok {
+		s.state.mu.Unlock()
+		return nil, rpcErr(-32004, "task not found", nil)
+	}
+	delete(s.state.tasks, id)
+	delete(s.state.taskRunning, id)
+	s.state.mu.Unlock()
+	s.persistState()
+	return map[string]any{"ok": true}, nil
+}
+
+func (s *rpcServer) taskToggle(id string, enabledAny any) (map[string]any, *rpcError) {
+	if id == "" {
+		return nil, rpcErr(-32602, "id is required", nil)
+	}
+	enabled, ok := enabledAny.(bool)
+	if !ok {
+		return nil, rpcErr(-32602, "enabled is required", nil)
+	}
+	s.state.mu.Lock()
+	task, exists := s.state.tasks[id]
+	if !exists {
+		s.state.mu.Unlock()
+		return nil, rpcErr(-32004, "task not found", nil)
+	}
+	task.Enabled = enabled
+	task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if enabled {
+		task.NextRunAt = time.Now().UTC().Add(time.Duration(task.ScheduleMinutes) * time.Minute).Format(time.RFC3339)
+	} else {
+		task.NextRunAt = ""
+	}
+	s.state.tasks[id] = task
+	s.state.mu.Unlock()
+	s.persistState()
+	return map[string]any{"task": task}, nil
+}
+
+func (s *rpcServer) taskRun(id string) (map[string]any, *rpcError) {
+	if id == "" {
+		return nil, rpcErr(-32602, "id is required", nil)
+	}
+	if !s.markTaskRunning(id) {
+		return nil, rpcErr(-32000, "task is already running", nil)
+	}
+	go s.executeTask(id, "manual")
+	return map[string]any{"ok": true}, nil
+}
+
+func (s *rpcServer) runTaskScheduler() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now().UTC()
+		due := make([]string, 0, 8)
+		s.state.mu.RLock()
+		for id, task := range s.state.tasks {
+			if !task.Enabled {
+				continue
+			}
+			next := parseRFC3339(task.NextRunAt)
+			if !next.IsZero() && next.After(now) {
+				continue
+			}
+			if s.state.taskRunning[id] {
+				continue
+			}
+			due = append(due, id)
+		}
+		s.state.mu.RUnlock()
+		for _, id := range due {
+			if !s.markTaskRunning(id) {
+				continue
+			}
+			go s.executeTask(id, "scheduled")
+		}
+	}
+}
+
+func (s *rpcServer) markTaskRunning(id string) bool {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	if s.state.taskRunning[id] {
+		return false
+	}
+	if _, ok := s.state.tasks[id]; !ok {
+		return false
+	}
+	s.state.taskRunning[id] = true
+	return true
+}
+
+func (s *rpcServer) executeTask(id, trigger string) {
+	defer func() {
+		s.state.mu.Lock()
+		delete(s.state.taskRunning, id)
+		s.state.mu.Unlock()
+	}()
+
+	s.state.mu.Lock()
+	task, ok := s.state.tasks[id]
+	if !ok {
+		s.state.mu.Unlock()
+		return
+	}
+	now := time.Now().UTC()
+	if !task.Enabled && trigger == "scheduled" {
+		s.state.mu.Unlock()
+		return
+	}
+	task.LastRunStatus = "running"
+	task.LastError = ""
+	task.LastRunAt = now.Format(time.RFC3339)
+	task.UpdatedAt = now.Format(time.RFC3339)
+	threadID := task.ThreadID
+	if threadID == "" {
+		threadID = s.ensureTaskThreadLocked(task)
+		task.ThreadID = threadID
+	}
+	s.state.tasks[id] = task
+	s.state.mu.Unlock()
+	s.persistState()
+
+	turnID := "turn-" + uuid.NewString()
+	userItem := s.appendItem(threadID, "user", task.Prompt, turnID, map[string]any{
+		"type":     "taskRun",
+		"taskId":   task.ID,
+		"taskName": task.Name,
+		"trigger":  trigger,
+	})
+	s.notifySubscribers(threadID, "room/event", map[string]any{"item": userItem, "cursor": userItem.Cursor})
+	s.notifySubscribers(threadID, "turn/started", map[string]any{"threadId": threadID, "turnId": turnID})
+
+	var runStatus string
+	var runErr string
+	s.runAssistantTurn(threadID, turnID, task.Prompt, task.WorkspacePath, func(status, errMsg string) {
+		runStatus = status
+		runErr = errMsg
+	})
+
+	s.state.mu.Lock()
+	task, ok = s.state.tasks[id]
+	if ok {
+		task.ThreadID = threadID
+		task.LastRunAt = time.Now().UTC().Format(time.RFC3339)
+		if runStatus == "" {
+			runStatus = "completed"
+		}
+		task.LastRunStatus = runStatus
+		task.LastError = runErr
+		task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		if task.Enabled {
+			task.NextRunAt = time.Now().UTC().Add(time.Duration(task.ScheduleMinutes) * time.Minute).Format(time.RFC3339)
+		}
+		s.state.tasks[id] = task
+	}
+	s.state.mu.Unlock()
+	s.persistState()
+}
+
+func (s *rpcServer) ensureTaskThreadLocked(task taskSpec) string {
+	id := uuid.NewString()
+	now := time.Now().UTC().Format(time.RFC3339)
+	title := strings.TrimSpace(task.Name)
+	if title == "" {
+		title = "Task " + shortID(task.ID)
+	}
+	th := thread{ID: id, Title: "[Task] " + title, CreatedAt: now}
+	s.state.threads = append([]thread{th}, s.state.threads...)
+	s.state.threadByID[id] = th
+	s.state.threadItems[id] = []threadItem{}
+	s.state.threadCursors[id] = 0
+	sessionID := uuid.NewString()
+	s.state.threadSession[id] = sessionID
+	s.state.sessionThread[sessionID] = id
+	s.state.loadedThreads[id] = true
+	return id
+}
+
 func (s *rpcServer) emitRoomEvent(threadID, turnID, role, content string, raw any) {
 	item := s.appendItem(threadID, role, content, turnID, raw)
 	s.notifySubscribers(threadID, "room/event", map[string]any{"item": item, "cursor": item.Cursor})
@@ -1086,6 +1390,7 @@ func (s *rpcServer) persistState() {
 		ThreadProjects:  copyStringMap(s.state.threadProjects),
 		RecentPaths:     append([]string(nil), s.state.recentPaths...),
 		FavoritePaths:   append([]string(nil), s.state.favoritePaths...),
+		Tasks:           copyTasks(s.state.tasks),
 	}
 	threadItems := copyThreadItems(s.state.threadItems)
 	threadCursors := copyInt64Map(s.state.threadCursors)
@@ -1198,6 +1503,15 @@ func loadPersistedState(statePath, sessionsDir string, st *serverState) {
 	}
 	if len(ps.FavoritePaths) > 0 {
 		st.favoritePaths = append([]string(nil), ps.FavoritePaths...)
+	}
+	if len(ps.Tasks) > 0 {
+		st.tasks = map[string]taskSpec{}
+		for _, task := range ps.Tasks {
+			if task.ID == "" {
+				continue
+			}
+			st.tasks[task.ID] = task
+		}
 	}
 	loadPersistedSessions(sessionsDir, st)
 }
@@ -1330,6 +1644,21 @@ func asInt(v any) (int, bool) {
 	}
 }
 
+func boolOrDefault(v any, fallback bool) bool {
+	b, ok := v.(bool)
+	if !ok {
+		return fallback
+	}
+	return b
+}
+
+func asPositiveIntOrDefault(v any, fallback int) int {
+	if n, ok := asInt(v); ok && n > 0 {
+		return n
+	}
+	return fallback
+}
+
 func absPath(p string) string {
 	if p == "" {
 		return ""
@@ -1339,6 +1668,25 @@ func absPath(p string) string {
 	}
 	wd, _ := os.Getwd()
 	return filepath.Clean(filepath.Join(wd, p))
+}
+
+func absPathOrEmpty(v any) string {
+	s := asString(v)
+	if s == "" {
+		return ""
+	}
+	return absPath(s)
+}
+
+func parseRFC3339(v string) time.Time {
+	if strings.TrimSpace(v) == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }
 
 func emptyToNil(s string) any {
@@ -1441,6 +1789,18 @@ func copyThreadItems(in map[string][]threadItem) map[string][]threadItem {
 	for k, v := range in {
 		out[k] = append([]threadItem(nil), v...)
 	}
+	return out
+}
+
+func copyTasks(in map[string]taskSpec) []taskSpec {
+	if len(in) == 0 {
+		return []taskSpec{}
+	}
+	out := make([]taskSpec, 0, len(in))
+	for _, task := range in {
+		out = append(out, task)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt > out[j].CreatedAt })
 	return out
 }
 

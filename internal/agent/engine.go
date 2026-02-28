@@ -40,11 +40,14 @@ type Config struct {
 }
 
 type Engine struct {
-	runtime   *api.Runtime
-	modelName string
-	metas     []SkillMeta
-	mu        sync.RWMutex
-	perm      PermissionHandler
+	runtime         *api.Runtime
+	modelName       string
+	settingsRoot    string
+	skillsDirs      []string
+	skillsRecursive bool
+	metas           []SkillMeta
+	mu              sync.RWMutex
+	perm            PermissionHandler
 }
 
 type PermissionDecision string
@@ -122,7 +125,14 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		return nil, err
 	}
 
-	eng = &Engine{runtime: rt, modelName: cfg.ModelName, metas: metas}
+	eng = &Engine{
+		runtime:         rt,
+		modelName:       cfg.ModelName,
+		settingsRoot:    settingsRoot,
+		skillsDirs:      normalizedSkillsDirs(cfg.RepoRoot, cfg.SkillsDirs),
+		skillsRecursive: cfg.SkillsRecursive == nil || *cfg.SkillsRecursive,
+		metas:           metas,
+	}
 	return eng, nil
 }
 
@@ -147,6 +157,29 @@ func (e *Engine) Skills() []SkillMeta {
 	out := make([]SkillMeta, len(e.metas))
 	copy(out, e.metas)
 	return out
+}
+
+func (e *Engine) SettingsRoot() string {
+	if e == nil {
+		return ""
+	}
+	return e.settingsRoot
+}
+
+func (e *Engine) SkillsDirs() []string {
+	if e == nil {
+		return nil
+	}
+	out := make([]string, len(e.skillsDirs))
+	copy(out, e.skillsDirs)
+	return out
+}
+
+func (e *Engine) SkillsRecursive() bool {
+	if e == nil {
+		return true
+	}
+	return e.skillsRecursive
 }
 
 func (e *Engine) EnrichPrompt(prompt string) string {
@@ -355,4 +388,28 @@ func ResolveRepoRoot(cwd string) string {
 		return filepath.Clean(candidates[0])
 	}
 	return "."
+}
+
+func normalizedSkillsDirs(projectRoot string, dirs []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(dir string) {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			return
+		}
+		if !filepath.IsAbs(dir) && strings.TrimSpace(projectRoot) != "" {
+			dir = filepath.Join(projectRoot, dir)
+		}
+		dir = filepath.Clean(dir)
+		if _, ok := seen[dir]; ok {
+			return
+		}
+		seen[dir] = struct{}{}
+		out = append(out, dir)
+	}
+	for _, dir := range dirs {
+		add(dir)
+	}
+	return out
 }

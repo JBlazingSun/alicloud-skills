@@ -13,6 +13,8 @@ import type { ConversationType } from '../conversation/types';
 import { resolveConversationAdapter } from '../conversation/registry';
 import {
   createAgentRuntimeSdk,
+  createTaskSdk,
+  type AgentTask,
   createWorkspaceSdk,
   type SkillInfo,
   type WorkspaceBrowseQuery,
@@ -55,7 +57,7 @@ function isMobileUserAgent() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
 }
 
-type TabKey = 'chats' | 'skills' | 'apps' | 'settings';
+type TabKey = 'chats' | 'tasks' | 'skills' | 'apps' | 'settings';
 
 type Command = {
   id: string;
@@ -100,6 +102,14 @@ type ApprovalHistoryItem = {
 
 type InputModalKind = 'mcp' | 'project' | 'worktree' | null;
 type TimelineEvent = { at: string; kind: string; detail: string };
+type TaskDraft = {
+  id?: string;
+  name: string;
+  prompt: string;
+  scheduleMinutes: number;
+  enabled: boolean;
+  workspacePath: string;
+};
 
 type LegacyChatAppProps = {
   conversationType?: ConversationType;
@@ -388,6 +398,17 @@ function IconGrid() {
   );
 }
 
+function IconTasks() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 5h10v2H9V5zm0 6h10v2H9v-2zm0 6h10v2H9v-2zM5.6 4.5a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm0 6a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm0 6a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 function IconCog() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -406,6 +427,7 @@ export default function App({
 }: LegacyChatAppProps) {
   const rpc = useMemo(() => new RpcClient(), []);
   const runtimeSdk = useMemo(() => createAgentRuntimeSdk(rpc), [rpc]);
+  const taskSdk = useMemo(() => createTaskSdk(rpc), [rpc]);
   const workspaceSdk = useMemo(() => createWorkspaceSdk(rpc), [rpc]);
   const adapter = useMemo(
     () => injectedAdapter ?? resolveConversationAdapter(rpc, conversationType),
@@ -477,6 +499,18 @@ export default function App({
   const [configPath, setConfigPath] = useState('');
   const [settingsToast, setSettingsToast] = useState<string>('');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [tasks, setTasks] = useState<AgentTask[]>([]);
+  const [taskLoading, setTaskLoading] = useState(false);
+  const [taskError, setTaskError] = useState('');
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [taskModalSubmitting, setTaskModalSubmitting] = useState(false);
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>({
+    name: '',
+    prompt: '',
+    scheduleMinutes: 5,
+    enabled: true,
+    workspacePath: '',
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalBody, setModalBody] = useState<string>('');
@@ -753,6 +787,27 @@ export default function App({
     [activeWorkspacePath, connected, workspaceSdk]
   );
 
+  const upsertTask = useCallback((nextTask: AgentTask) => {
+    setTasks((prev) => {
+      const idx = prev.findIndex((task) => task.id === nextTask.id);
+      if (idx < 0) return [nextTask, ...prev];
+      const copy = [...prev];
+      copy[idx] = nextTask;
+      return copy;
+    });
+  }, []);
+
+  const refreshTasks = useCallback(() => {
+    if (!connected) return;
+    setTaskLoading(true);
+    setTaskError('');
+    taskSdk
+      .list()
+      .then((res) => setTasks(res.tasks ?? []))
+      .catch((err) => setTaskError(formatError(err)))
+      .finally(() => setTaskLoading(false));
+  }, [connected, taskSdk]);
+
   useEffect(() => {
     refreshSkills();
   }, [refreshSkills]);
@@ -762,8 +817,90 @@ export default function App({
   }, [refreshWorkspaces]);
 
   useEffect(() => {
+    refreshTasks();
+  }, [refreshTasks]);
+
+  useEffect(() => {
     refreshWorktreeItems(activeWorkspacePath);
   }, [activeWorkspacePath, refreshWorktreeItems]);
+
+  const openCreateTaskModal = useCallback(() => {
+    setTaskDraft({
+      name: '',
+      prompt: '',
+      scheduleMinutes: 5,
+      enabled: true,
+      workspacePath: activeWorkspacePath || '',
+    });
+    setTaskModalOpen(true);
+  }, [activeWorkspacePath]);
+
+  const openEditTaskModal = useCallback((task: AgentTask) => {
+    setTaskDraft({
+      id: task.id,
+      name: task.name,
+      prompt: task.prompt,
+      scheduleMinutes: task.scheduleMinutes || 5,
+      enabled: task.enabled,
+      workspacePath: task.workspacePath || '',
+    });
+    setTaskModalOpen(true);
+  }, []);
+
+  const submitTaskModal = useCallback(async () => {
+    const payload = {
+      name: taskDraft.name.trim(),
+      prompt: taskDraft.prompt.trim(),
+      scheduleMinutes: Math.max(1, Math.floor(taskDraft.scheduleMinutes || 1)),
+      enabled: taskDraft.enabled,
+      workspacePath: taskDraft.workspacePath.trim(),
+    };
+    if (!payload.name || !payload.prompt) {
+      setTaskError(translations[lang].taskRequired ?? translations.en.taskRequired ?? 'Task name and prompt are required.');
+      return;
+    }
+    setTaskModalSubmitting(true);
+    try {
+      if (taskDraft.id) {
+        const res = await taskSdk.update({ id: taskDraft.id, ...payload });
+        if (res.task) upsertTask(res.task);
+      } else {
+        const res = await taskSdk.create(payload);
+        if (res.task) upsertTask(res.task);
+      }
+      setTaskModalOpen(false);
+      setTaskError('');
+    } catch (err) {
+      setTaskError(formatError(err));
+    } finally {
+      setTaskModalSubmitting(false);
+    }
+  }, [lang, taskDraft, taskSdk, upsertTask]);
+
+  const handleDeleteTask = useCallback((id: string) => {
+    if (!id) return;
+    taskSdk
+      .delete(id)
+      .then(() => setTasks((prev) => prev.filter((task) => task.id !== id)))
+      .catch((err) => setTaskError(formatError(err)));
+  }, [taskSdk]);
+
+  const handleToggleTask = useCallback((task: AgentTask) => {
+    taskSdk
+      .toggle(task.id, !task.enabled)
+      .then((res) => {
+        if (res.task) upsertTask(res.task);
+      })
+      .catch((err) => setTaskError(formatError(err)));
+  }, [taskSdk, upsertTask]);
+
+  const handleRunTask = useCallback((id: string) => {
+    if (!id) return;
+    taskSdk
+      .run(id)
+      .then(() => refreshTasks())
+      .catch((err) => setTaskError(formatError(err)));
+  }, [refreshTasks, taskSdk]);
 
   useEffect(() => {
     try {
@@ -1919,7 +2056,7 @@ export default function App({
 
   useEffect(() => {
     const anyOpen =
-      paletteOpen || modalOpen || !!inputModalKind || workspaceBrowserOpen || mobileHeaderMenuOpen;
+      paletteOpen || modalOpen || taskModalOpen || !!inputModalKind || workspaceBrowserOpen || mobileHeaderMenuOpen;
     if (anyOpen && !lastFocusedRef.current) {
       lastFocusedRef.current = document.activeElement as HTMLElement | null;
       return;
@@ -1928,12 +2065,13 @@ export default function App({
       lastFocusedRef.current.focus();
       lastFocusedRef.current = null;
     }
-  }, [paletteOpen, modalOpen, inputModalKind, workspaceBrowserOpen, mobileHeaderMenuOpen]);
+  }, [paletteOpen, modalOpen, taskModalOpen, inputModalKind, workspaceBrowserOpen, mobileHeaderMenuOpen]);
 
   useEffect(() => {
     if (
       !paletteOpen &&
       !modalOpen &&
+      !taskModalOpen &&
       !inputModalKind &&
       !workspaceBrowserOpen &&
       !mobileSidebarOpen &&
@@ -1946,6 +2084,7 @@ export default function App({
       if (mobileHeaderMenuOpen) setMobileHeaderMenuOpen(false);
       if (paletteOpen) setPaletteOpen(false);
       if (modalOpen) setModalOpen(false);
+      if (taskModalOpen) setTaskModalOpen(false);
       if (inputModalKind) closeInputModal();
       if (workspaceBrowserOpen) closeWorkspaceBrowser();
     };
@@ -1954,6 +2093,7 @@ export default function App({
   }, [
     paletteOpen,
     modalOpen,
+    taskModalOpen,
     inputModalKind,
     workspaceBrowserOpen,
     mobileSidebarOpen,
@@ -2045,6 +2185,13 @@ export default function App({
             aria-pressed={activeTab === 'chats'}
           >
             {t('chats')}
+          </button>
+          <button
+            className={`top-nav-item ${activeTab === 'tasks' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tasks')}
+            aria-pressed={activeTab === 'tasks'}
+          >
+            {t('tasks')}
           </button>
           <button
             className={`top-nav-item ${activeTab === 'skills' ? 'active' : ''}`}
@@ -2205,6 +2352,18 @@ export default function App({
                     <IconChat />
                   </span>
                   {t('chats')}
+                </button>
+                <button
+                  className={`mobile-menu-item ${activeTab === 'tasks' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('tasks');
+                    setMobileHeaderMenuOpen(false);
+                  }}
+                >
+                  <span className="icon">
+                    <IconTasks />
+                  </span>
+                  {t('tasks')}
                 </button>
                 <button
                   className={`mobile-menu-item ${activeTab === 'skills' ? 'active' : ''}`}
@@ -2368,6 +2527,8 @@ export default function App({
                 <div className="main-title">
                   {activeTab === 'chats'
                     ? t('room')
+                    : activeTab === 'tasks'
+                      ? t('tasks')
                     : activeTab === 'skills'
                       ? t('skills')
                       : activeTab === 'apps'
@@ -2380,6 +2541,8 @@ export default function App({
                   ? threadId
                     ? `${threadId.slice(0, 20)} · client ${clientId.slice(0, 8)}`
                     : t('noActiveRoom')
+                  : activeTab === 'tasks'
+                    ? t('manageTasks')
                   : activeTab === 'skills'
                     ? t('manageSkills')
                     : activeTab === 'apps'
@@ -2470,6 +2633,90 @@ export default function App({
               handleNewThread={handleNewThread}
             />
           ) : null}
+
+          {activeTab === 'tasks' && (
+            <div className="panel-scroll">
+              <div className="panel-toolbar">
+                <div>
+                  <div className="panel-title">{t('tasks')}</div>
+                  <div className="panel-subtitle">{t('tasksSubtitle')}</div>
+                </div>
+                <div className="settings-actions">
+                  <button className="pill" onClick={openCreateTaskModal}>
+                    {t('taskCreate')}
+                  </button>
+                  <button className="pill pill-ghost" onClick={refreshTasks}>
+                    {t('refresh')}
+                  </button>
+                </div>
+              </div>
+              {taskError && <div className="toast-error">{taskError}</div>}
+              <div className="settings-section">
+                <div className="settings-grid">
+                  {taskLoading && (
+                    <div className="settings-card">
+                      <div className="settings-body">{t('taskLoading')}</div>
+                    </div>
+                  )}
+                  {!taskLoading && tasks.length === 0 && (
+                    <div className="settings-card">
+                      <div className="settings-title">{t('taskEmptyTitle')}</div>
+                      <div className="settings-body">{t('taskEmptyBody')}</div>
+                    </div>
+                  )}
+                  {!taskLoading &&
+                    tasks.map((task) => (
+                      <div key={task.id} className="settings-card">
+                        <div className="settings-title">{task.name}</div>
+                        <div className="settings-body">{task.prompt}</div>
+                        <div className="settings-row">
+                          <span>{t('taskInterval')}</span>
+                          <span className="settings-value">{task.scheduleMinutes}m</span>
+                        </div>
+                        <div className="settings-row">
+                          <span>{t('status')}</span>
+                          <span className={`status-chip ${task.enabled ? 'ok' : 'bad'}`}>
+                            {task.enabled ? t('taskEnabled') : t('taskDisabled')}
+                          </span>
+                        </div>
+                        <div className="settings-row">
+                          <span>{t('taskNextRun')}</span>
+                          <span className="settings-value">
+                            {task.nextRunAt ? new Date(task.nextRunAt).toLocaleString() : t('none')}
+                          </span>
+                        </div>
+                        <div className="settings-row">
+                          <span>{t('taskLastRun')}</span>
+                          <span className="settings-value">
+                            {task.lastRunAt ? new Date(task.lastRunAt).toLocaleString() : t('none')}
+                          </span>
+                        </div>
+                        {task.lastError && (
+                          <div className="settings-row">
+                            <span>{t('turnError')}</span>
+                            <span className="settings-value">{task.lastError}</span>
+                          </div>
+                        )}
+                        <div className="settings-actions">
+                          <button className="pill" onClick={() => handleRunTask(task.id)}>
+                            {t('taskRunNow')}
+                          </button>
+                          <button className="pill pill-ghost" onClick={() => openEditTaskModal(task)}>
+                            {t('taskEdit')}
+                          </button>
+                          <button className="pill pill-ghost" onClick={() => handleToggleTask(task)}>
+                            {task.enabled ? t('taskDisable') : t('taskEnable')}
+                          </button>
+                          <button className="pill pill-ghost" onClick={() => handleDeleteTask(task.id)}>
+                            {t('taskDelete')}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {activeTab === 'skills' && (
             <div className="panel-scroll">
@@ -2886,6 +3133,63 @@ export default function App({
           )}
         </main>
       </div>
+
+      {taskModalOpen && (
+        <div className="modal-overlay" onClick={() => setTaskModalOpen(false)}>
+          <div className="modal-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{taskDraft.id ? t('taskEdit') : t('taskCreate')}</div>
+              <button className="pill pill-ghost" onClick={() => setTaskModalOpen(false)}>
+                {t('close')}
+              </button>
+            </div>
+            <div className="modal-form">
+              <label className="input-label">{t('taskName')}</label>
+              <input
+                value={taskDraft.name}
+                onChange={(event) => setTaskDraft((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder={t('taskName')}
+              />
+              <label className="input-label">{t('taskPrompt')}</label>
+              <textarea
+                className="settings-textarea"
+                rows={6}
+                value={taskDraft.prompt}
+                onChange={(event) => setTaskDraft((prev) => ({ ...prev, prompt: event.target.value }))}
+                placeholder={t('taskPrompt')}
+              />
+              <label className="input-label">{t('taskWorkspace')}</label>
+              <input
+                value={taskDraft.workspacePath}
+                onChange={(event) => setTaskDraft((prev) => ({ ...prev, workspacePath: event.target.value }))}
+                placeholder="/path/to/workspace"
+              />
+              <label className="input-label">{t('taskInterval')}</label>
+              <input
+                type="number"
+                min={1}
+                value={taskDraft.scheduleMinutes}
+                onChange={(event) =>
+                  setTaskDraft((prev) => ({ ...prev, scheduleMinutes: Number(event.target.value) || 1 }))
+                }
+              />
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={taskDraft.enabled}
+                  onChange={(event) => setTaskDraft((prev) => ({ ...prev, enabled: event.target.checked }))}
+                />
+                <span>{t('taskEnabled')}</span>
+              </label>
+              <div className="settings-actions">
+                <button className="pill" onClick={submitTaskModal} disabled={taskModalSubmitting}>
+                  {taskModalSubmitting ? t('approvalSubmitting') : t('save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <InfoModal
         open={modalOpen}
