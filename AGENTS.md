@@ -4,6 +4,12 @@
 - `skills/` is the canonical source of skills, grouped by domain (for example `skills/ai/`, `skills/compute/`, `skills/security/`).
 - Each skill usually contains `SKILL.md`, optional `scripts/`, optional `references/`, and `agents/openai.yaml`.
 - `tests/` mirrors skill domains and stores smoke-test skill specs (mostly `tests/**/SKILL.md`).
+- `apps/` contains application code:
+  - `apps/cmd/alicloud-skills` (Go CLI entrypoint)
+  - `apps/internal/agent` (shared Go runtime logic)
+  - `apps/desktop` (Wails desktop backend)
+  - `apps/web` (Next.js frontend)
+  - `apps/go.mod`, `apps/go.sum` (Go module for all Go code under `apps/`)
 - `scripts/` contains repository maintenance tools (index generation, product metadata merge, README section generation).
 - `examples/` contains prompt patterns and scenario docs.
 - `output/` is for generated artifacts only; do not commit files from this directory.
@@ -11,9 +17,17 @@
 ## Build, Test, and Development Commands
 - Install skills locally:
   - `npx skillfish add cinience/alicloud-skills --all -y --force`
-- Regenerate README skill index/mapping sections:
+- Regenerate README skill index section:
   - `scripts/update_skill_index.sh`
-  - Equivalent explicit form: `python3 scripts/generate_skill_index.py && python3 scripts/generate_readme_skill_sections.py`
+  - Equivalent explicit form: `python3 scripts/generate_skill_index.py`
+- Build/test apps from repo root:
+  - `make test`
+  - `make build-cli`
+  - `make build-desktop`
+  - `make run` (optional args: `make run RUN_ARGS='run --help'`)
+- Direct Go commands:
+  - `go -C apps test ./...`
+  - `go -C apps build ./cmd/alicloud-skills`
 - Run a utility script directly when iterating:
   - `python3 scripts/analyze_products_vs_skills.py`
 
@@ -34,6 +48,6 @@
 - Keep commits scoped to one concern (skill content, scripts, or docs/index regeneration).
 - PRs should include:
   - What changed and why.
-  - Affected paths (for example `skills/ai/...`, `scripts/...`, `README*.md`).
+  - Affected paths (for example `skills/ai/...`, `apps/...`, `scripts/...`, `README*.md`).
   - Validation evidence (commands run, output location, screenshots/log snippets if useful).
   - Confirmation that generated README sections were refreshed when skill inventory changed.
