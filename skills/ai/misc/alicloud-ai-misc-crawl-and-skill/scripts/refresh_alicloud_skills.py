@@ -31,7 +31,7 @@ KNOWN_SKILLS = {
     "video": "skills/ai/video/alicloud-ai-video-wan-video",
     "audio": "skills/ai/audio/alicloud-ai-audio-tts",
     "embedding": "skills/ai/search/alicloud-ai-search-dashvector",
-    "asr": "(missing)",
+    "asr": "skills/ai/audio/alicloud-ai-audio-asr",
     "llm": "(missing)",
 }
 

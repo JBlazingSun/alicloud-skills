@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-image-qwen-image-edit
-description: Edit images with Alibaba Cloud Model Studio Qwen Image Edit Max (qwen-image-edit-max). Use when modifying existing images (inpaint, replace, style transfer, local edits), preserving subject consistency, or documenting image edit request/response mappings.
+description: Edit images with Alibaba Cloud Model Studio Qwen Image Edit models (qwen-image-edit, qwen-image-edit-plus, qwen-image-edit-max and snapshots). Use when modifying existing images (inpaint, replace, style transfer, local edits), preserving subject consistency, or documenting image edit request/response mappings.
 ---
 
 Category: provider
@@ -12,7 +12,10 @@ Use Qwen Image Edit models for instruction-based image editing instead of text-t
 ## Critical model names
 
 Use one of these exact model strings:
+- `qwen-image-edit`
+- `qwen-image-edit-plus`
 - `qwen-image-edit-max`
+- `qwen-image-edit-plus-2025-12-15`
 - `qwen-image-edit-max-2026-01-16`
 
 ## Prerequisites

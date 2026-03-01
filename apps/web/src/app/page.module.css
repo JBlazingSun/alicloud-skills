@@ -1,0 +1,322 @@
+.page {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 8% 0%, #fef3c7 0%, #ffffff 34%),
+    radial-gradient(circle at 95% 100%, #dbeafe 0%, #ffffff 44%);
+  color: #111827;
+  font-family: 'IBM Plex Sans', 'Noto Sans SC', sans-serif;
+}
+
+.header {
+  max-width: 1080px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.tabs {
+  max-width: 1080px;
+  margin: 0 auto 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.tab,
+.tabActive {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.tabActive {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.main {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.stream {
+  min-height: 62vh;
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.05);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.empty {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.message {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.user {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.assistant {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.role {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.parts {
+  display: grid;
+  gap: 8px;
+}
+
+.content {
+  font-size: 14px;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.approval {
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  background: #fffbeb;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.approvalTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.approvalMeta {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #78350f;
+}
+
+.command {
+  margin: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #f9fafb;
+  padding: 8px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actions button {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 6px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.eventCard {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.eventHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.composer {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.composer button {
+  justify-self: end;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  background: #111827;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.settingsCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.05);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.settingsHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.settingsHead h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.settingsHead p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.presetBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presetBar button {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 6px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.configEditor {
+  width: 100%;
+  min-height: 420px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+  white-space: pre;
+}
+
+.statusLine {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.error,
+.done {
+  font-size: 12px;
+}
+
+.error {
+  color: #dc2626;
+}
+
+.done {
+  color: #15803d;
+}
+
+.errorBanner {
+  max-width: 1080px;
+  margin: 12px auto 0;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 780px) {
+  .page {
+    padding: 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stream {
+    min-height: 56vh;
+    max-height: 64vh;
+  }
+
+  .settingsHead {
+    flex-direction: column;
+  }
+}

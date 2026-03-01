@@ -211,3 +211,45 @@ output/
 
 # Model Studio (duplicate of skills/ai/)
 modelstudio/
+
+# Go/Web/Desktop generated artifacts
+apps/desktop/frontend/dist/
+apps/build/
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+*.exe
+
+# Local agent/editor runtime configs (do not commit)
+.alicloud-skills/
+.adal/
+.agent/
+.agents/
+.augment/
+.claude/
+.cline/
+.codebuddy/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/

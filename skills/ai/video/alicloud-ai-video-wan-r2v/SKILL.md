@@ -1,6 +1,6 @@
 ---
 name: alicloud-ai-video-wan-r2v
-description: Generate reference-based videos with Alibaba Cloud Model Studio Wan R2V (wan2.6-r2v-flash). Use when creating multi-shot videos from reference video/image material, preserving character style, or documenting reference-to-video request/response flows.
+description: Generate reference-based videos with Alibaba Cloud Model Studio Wan R2V models (wan2.6-r2v-flash, wan2.6-r2v). Use when creating multi-shot videos from reference video/image material, preserving character style, or documenting reference-to-video request/response flows.
 ---
 
 Category: provider
@@ -9,10 +9,11 @@ Category: provider
 
 Use Wan R2V for reference-to-video generation. This is different from i2v (single image to video).
 
-## Critical model name
+## Critical model names
 
-Use ONLY this exact model string:
+Use one of these exact model strings:
 - `wan2.6-r2v-flash`
+- `wan2.6-r2v`
 
 ## Prerequisites
 

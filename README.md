@@ -16,7 +16,7 @@ including Model Studio, OSS, ECS, and more.
 Recommended install (all skills, skip prompts, overwrite existing):
 
 ```bash
-npx skillfish add cinience/alicloud-skills --all -y --force
+npx skills add cinience/alicloud-skills --all -y --force
 ```
 
 If you still see a selection prompt, press `a` to select all, then press Enter to submit.
@@ -239,14 +239,15 @@ Return key status, audit results, and remediation suggestions."
 <!-- SKILL_INDEX_BEGIN -->
 | Category | Skill | Description | Path |
 | --- | --- | --- | --- |
+| ai/audio | alicloud-ai-audio-asr | Transcribe non-realtime speech with Alibaba Cloud Model Studio Qwen ASR models (`qwen-audio-asr`, `qwen-audio-asr-filetrans`). Use when converting recorded audio files to text, generating transcripts with timestamps, or documenting DashScope ASR request/response fields. | `skills/ai/audio/alicloud-ai-audio-asr` |
 | ai/audio | alicloud-ai-audio-tts | Generate human-like speech audio with Model Studio DashScope Qwen TTS models (qwen3-tts-flash, qwen3-tts-instruct-flash). Use when converting text to speech, producing voice lines for short drama/news videos, or documenting TTS request/response fields for DashScope. | `skills/ai/audio/alicloud-ai-audio-tts` |
 | ai/audio | alicloud-ai-audio-tts-realtime | Real-time speech synthesis with Alibaba Cloud Model Studio Qwen TTS Realtime models. Use when low-latency interactive speech is required, including instruction-controlled realtime synthesis. | `skills/ai/audio/alicloud-ai-audio-tts-realtime` |
 | ai/audio | alicloud-ai-audio-tts-voice-clone | Voice cloning workflows with Alibaba Cloud Model Studio Qwen TTS VC models. Use when creating cloned voices from sample audio and synthesizing text with cloned timbre. | `skills/ai/audio/alicloud-ai-audio-tts-voice-clone` |
 | ai/audio | alicloud-ai-audio-tts-voice-design | Voice design workflows with Alibaba Cloud Model Studio Qwen TTS VD models. Use when creating custom synthetic voices from text descriptions and using them for speech synthesis. | `skills/ai/audio/alicloud-ai-audio-tts-voice-design` |
 | ai/content | alicloud-ai-content-aicontent | Manage Alibaba Cloud AIContent (AiContent) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product. | `skills/ai/content/alicloud-ai-content-aicontent` |
 | ai/content | alicloud-ai-content-aimiaobi | Manage Alibaba Cloud Quan Miao (AiMiaoBi) via OpenAPI/SDK. Use for listing resources, creating or updating configurations, querying status, and troubleshooting workflows for this product. | `skills/ai/content/alicloud-ai-content-aimiaobi` |
-| ai/entry | alicloud-ai-entry-modelstudio | Route Alibaba Cloud Model Studio requests to the right local skill (Qwen Image, Qwen Image Edit, Wan Video, Wan R2V, Qwen TTS and advanced TTS variants). Use when the user asks for Model Studio without specifying a capability. | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
-| ai/entry | alicloud-ai-entry-modelstudio-test | Run a minimal test matrix for the Model Studio skills that exist in this repo (image/video/TTS and newly added edit/realtime/voice variants). Use to execute one small request per skill and record results. | `skills/ai/entry/alicloud-ai-entry-modelstudio-test` |
+| ai/entry | alicloud-ai-entry-modelstudio | Route Alibaba Cloud Model Studio requests to the right local skill (Qwen Image, Qwen Image Edit, Wan Video, Wan R2V, Qwen TTS, Qwen ASR and advanced TTS variants). Use when the user asks for Model Studio without specifying a capability. | `skills/ai/entry/alicloud-ai-entry-modelstudio` |
+| ai/entry | alicloud-ai-entry-modelstudio-test | Run a minimal test matrix for the Model Studio skills that exist in this repo (image/video/TTS/ASR and newly added edit/realtime/voice variants). Use to execute one small request per skill and record results. | `skills/ai/entry/alicloud-ai-entry-modelstudio-test` |
 | ai/image | alicloud-ai-image-qwen-image | Generate images with Model Studio DashScope SDK using Qwen Image generation models (qwen-image-max, qwen-image-plus-2026-01-09). Use when implementing or documenting image.generate requests/responses, mapping prompt/negative_prompt/size/seed/reference_image, or integrating image generation into the video-agent pipeline. | `skills/ai/image/alicloud-ai-image-qwen-image` |
 | ai/image | alicloud-ai-image-qwen-image-edit | Edit images with Alibaba Cloud Model Studio Qwen Image Edit Max (qwen-image-edit-max). Use when modifying existing images (inpaint, replace, style transfer, local edits), preserving subject consistency, or documenting image edit request/response mappings. | `skills/ai/image/alicloud-ai-image-qwen-image-edit` |
 | ai/image | alicloud-ai-image-zimage-turbo | Generate images with Alibaba Cloud Model Studio Z-Image Turbo (z-image-turbo) via DashScope multimodal-generation API. Use when creating text-to-image outputs, controlling size/seed/prompt_extend, or documenting request/response mapping for Z-Image. | `skills/ai/image/alicloud-ai-image-zimage-turbo` |
@@ -306,57 +307,6 @@ See: `examples/industry-use-cases.md`
 - Use subfolders per skill, e.g. `output/<skill>/...`.
 - `output/` is ignored by git and should not be committed.
 
-## Skill Mapping (Skill -> Display Name)
+## Star History
 
-<!-- SKILL_MAPPING_BEGIN -->
-| Skill | Display Name |
-| --- | --- |
-| `alicloud-ai-audio-tts` | Alibaba Cloud AI Audio TTS |
-| `alicloud-ai-audio-tts-realtime` | Alibaba Cloud AI Audio TTS Realtime |
-| `alicloud-ai-audio-tts-voice-clone` | Alibaba Cloud AI Audio TTS Voice Clone |
-| `alicloud-ai-audio-tts-voice-design` | Alibaba Cloud AI Audio TTS Voice Design |
-| `alicloud-ai-chatbot` | Alibaba Cloud AI Chatbot |
-| `alicloud-ai-cloud-call-center` | Alibaba Cloud AI Cloud Call Center |
-| `alicloud-ai-contactcenter-ai` | Alibaba Cloud AI Contactcenter AI |
-| `alicloud-ai-content-aicontent` | Alibaba Cloud AI Content Aicontent |
-| `alicloud-ai-content-aimiaobi` | Alibaba Cloud AI Content Aimiaobi |
-| `alicloud-ai-entry-modelstudio` | Alibaba Cloud AI Entry Modelstudio |
-| `alicloud-ai-entry-modelstudio-test` | Alibaba Cloud AI Entry Modelstudio Test |
-| `alicloud-ai-image-qwen-image` | Alibaba Cloud AI Image Qwen Image |
-| `alicloud-ai-image-qwen-image-edit` | Alibaba Cloud AI Image Qwen Image Edit |
-| `alicloud-ai-image-zimage-turbo` | Alibaba Cloud AI Image Zimage Turbo |
-| `alicloud-ai-misc-crawl-and-skill` | Alibaba Cloud AI Misc Crawl And Skill |
-| `alicloud-ai-multimodal-qwen-vl` | Alibaba Cloud AI Multimodal Qwen Vl |
-| `alicloud-ai-pai-aiworkspace` | Alibaba Cloud AI PAI Aiworkspace |
-| `alicloud-ai-recommend-airec` | Alibaba Cloud AI Recommend Airec |
-| `alicloud-ai-search-dashvector` | Alibaba Cloud AI Search Dashvector |
-| `alicloud-ai-search-milvus` | Alibaba Cloud AI Search Milvus |
-| `alicloud-ai-search-opensearch` | Alibaba Cloud AI Search Opensearch |
-| `alicloud-ai-text-document-mind` | Alibaba Cloud AI Text Document Mind |
-| `alicloud-ai-translation-anytrans` | Alibaba Cloud AI Translation Anytrans |
-| `alicloud-ai-video-wan-r2v` | Alibaba Cloud AI Video Wan R2V |
-| `alicloud-ai-video-wan-video` | Alibaba Cloud AI Video Wan Video |
-| `alicloud-backup-bdrc` | Alibaba Cloud Backup BDRC |
-| `alicloud-backup-hbr` | Alibaba Cloud Backup HBR |
-| `alicloud-compute-ecs` | Alibaba Cloud Compute ECS |
-| `alicloud-compute-fc-agentrun` | Alibaba Cloud Compute FC Agentrun |
-| `alicloud-compute-fc-serverless-devs` | Alibaba Cloud Compute FC Serverless Devs |
-| `alicloud-compute-swas-open` | Alibaba Cloud Compute Swas Open |
-| `alicloud-data-analytics-dataanalysisgbi` | Alibaba Cloud Data Analytics Dataanalysisgbi |
-| `alicloud-data-lake-dlf` | Alibaba Cloud Data Lake DLF |
-| `alicloud-data-lake-dlf-next` | Alibaba Cloud Data Lake DLF Next |
-| `alicloud-database-analyticdb-mysql` | Alibaba Cloud Database Analyticdb Mysql |
-| `alicloud-database-rds-supabase` | Alibaba Cloud Database RDS Supabase |
-| `alicloud-media-video-translation` | Alibaba Cloud Media Video Translation |
-| `alicloud-network-dns-cli` | Alibaba Cloud Network DNS Cli |
-| `alicloud-observability-sls-log-query` | Alibaba Cloud Observability SLS Log Query |
-| `alicloud-platform-docs-api-review` | Alibaba Cloud Platform Docs API Review |
-| `alicloud-platform-multicloud-docs-api-benchmark` | Alibaba Cloud Platform Multicloud Docs API Benchmark |
-| `alicloud-platform-openapi-product-api-discovery` | Alibaba Cloud Platform OpenAPI Product API Discovery |
-| `alicloud-security-center-sas` | Alibaba Cloud Security Center SAS |
-| `alicloud-security-cloudfw` | Alibaba Cloud Security Cloudfw |
-| `alicloud-security-content-moderation-green` | Alibaba Cloud Security Content Moderation Green |
-| `alicloud-security-id-verification-cloudauth` | Alibaba Cloud Security Id Verification Cloudauth |
-| `alicloud-security-kms` | Alibaba Cloud Security KMS |
-| `alicloud-storage-oss-ossutil` | Alibaba Cloud Storage OSS Ossutil |
-<!-- SKILL_MAPPING_END -->
+[![Star History Chart](https://api.star-history.com/svg?repos=cinience/alicloud-skills&type=Date)](https://star-history.com/#cinience/alicloud-skills&Date)
