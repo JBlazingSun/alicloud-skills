@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/godeps/agentkit/pkg/api"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -28,190 +28,277 @@ const (
 )
 
 func main() {
-	if topic, ok := detectSubcommandHelp(os.Args[1:]); ok {
-		printSubcommandHelp(os.Stdout, topic)
-		return
-	}
-
 	_ = godotenv.Load()
+	if err := newRootCmd().Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
 
-	var (
-		modelName       string
-		configRoot      string
-		skillsRecursive bool
-		timeoutMs       int
-		sessionID       string
-		printConfig     bool
-		verbose         bool
-		waterfall       bool
-		execute         string
-	)
-	flag.StringVar(&modelName, "model", "", "Model name")
-	flag.StringVar(&configRoot, "config-root", "", "Config root directory (settings.json/settings.local.json)")
-	flag.BoolVar(&skillsRecursive, "skills-recursive", true, "Discover SKILL.md recursively")
-	flag.IntVar(&timeoutMs, "timeout-ms", 10*60*1000, "Run timeout in milliseconds")
-	flag.StringVar(&sessionID, "session-id", "", "Session ID for one-shot mode (default: auto-generate)")
-	flag.BoolVar(&printConfig, "print-effective-config", false, "Print resolved runtime config before running")
-	flag.BoolVar(&verbose, "verbose", false, "Verbose stream diagnostics")
-	flag.BoolVar(&waterfall, "waterfall", true, "Print LLM/tool waterfall stats per request")
-	flag.StringVar(&execute, "e", "", "Execute a single prompt and exit")
-	flag.StringVar(&execute, "execute", "", "Execute a single prompt and exit")
-	var skillsDirs multiValue
-	flag.Var(&skillsDirs, "skills-dir", "Skills directory (repeatable)")
-	flag.Parse()
+type cliOptions struct {
+	modelName       string
+	configRoot      string
+	skillsRecursive bool
+	timeoutMs       int
+	sessionID       string
+	printConfig     bool
+	verbose         bool
+	waterfall       bool
+	execute         string
+	skillsDirs      []string
+}
 
-	if strings.TrimSpace(modelName) == "" {
-		modelName = strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_MODEL"))
+func newRootCmd() *cobra.Command {
+	opts := &cliOptions{
+		skillsRecursive: true,
+		timeoutMs:       10 * 60 * 1000,
+		waterfall:       true,
 	}
-	if strings.TrimSpace(modelName) == "" {
-		modelName = agent.DefaultModel
+
+	rootCmd := &cobra.Command{
+		Use:   "alicloud-skills",
+		Short: "Alibaba Cloud Agent CLI",
+		Long:  "Alibaba Cloud skill-powered CLI for one-shot and interactive workflows.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved := resolveCLIOptions(cmd, *opts)
+			if strings.TrimSpace(resolved.execute) != "" {
+				return runOneShot(cmd.Context(), resolved, resolved.execute)
+			}
+			return runInteractive(cmd.Context(), resolved)
+		},
 	}
-	if strings.TrimSpace(configRoot) == "" {
-		configRoot = strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_SETTINGS_ROOT"))
+
+	rootCmd.PersistentFlags().StringVar(&opts.modelName, "model", "", "Model name")
+	rootCmd.PersistentFlags().StringVar(&opts.configRoot, "config-root", "", "Config root directory (settings.json/settings.local.json)")
+	rootCmd.PersistentFlags().BoolVar(&opts.skillsRecursive, "skills-recursive", true, "Discover SKILL.md recursively")
+	rootCmd.PersistentFlags().IntVar(&opts.timeoutMs, "timeout-ms", 10*60*1000, "Run timeout in milliseconds")
+	rootCmd.PersistentFlags().StringVar(&opts.sessionID, "session-id", "", "Session ID (default: auto-generate)")
+	rootCmd.PersistentFlags().BoolVar(&opts.printConfig, "print-effective-config", false, "Print resolved runtime config before running")
+	rootCmd.PersistentFlags().BoolVar(&opts.verbose, "verbose", false, "Verbose stream diagnostics")
+	rootCmd.PersistentFlags().BoolVar(&opts.waterfall, "waterfall", true, "Print LLM/tool waterfall stats per request")
+	rootCmd.PersistentFlags().StringVarP(&opts.execute, "execute", "e", "", "Execute a single prompt and exit")
+	rootCmd.PersistentFlags().StringSliceVar(&opts.skillsDirs, "skills-dir", nil, "Skills directory (repeatable)")
+
+	rootCmd.AddCommand(newRunCmd(opts))
+	rootCmd.AddCommand(newReplCmd(opts))
+	rootCmd.AddCommand(newSkillsCmd(opts))
+	rootCmd.AddCommand(newConfigCmd(opts))
+	rootCmd.AddCommand(newAPICmd())
+
+	return rootCmd
+}
+
+func newRunCmd(opts *cliOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "run [prompt...]",
+		Short: "Run a single non-interactive prompt",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved := resolveCLIOptions(cmd, *opts)
+			prompt := strings.TrimSpace(strings.Join(args, " "))
+			withStdin, err := maybePrependStdin(prompt)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(withStdin) == "" {
+				return fmt.Errorf("no prompt provided")
+			}
+			return runOneShot(cmd.Context(), resolved, withStdin)
+		},
 	}
-	if v := strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_TIMEOUT_MS")); v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
-			timeoutMs = parsed
+}
+
+func newReplCmd(opts *cliOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "repl",
+		Short: "Run interactive REPL mode",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved := resolveCLIOptions(cmd, *opts)
+			return runInteractive(cmd.Context(), resolved)
+		},
+	}
+}
+
+func newSkillsCmd(opts *cliOptions) *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "skills",
+		Short: "List loaded skills",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved := resolveCLIOptions(cmd, *opts)
+			eng, repoRoot, cfg, err := initEngine(cmd.Context(), resolved)
+			if err != nil {
+				return err
+			}
+			defer eng.Close()
+			if resolved.printConfig {
+				printEffectiveConfig(cmd.OutOrStdout(), repoRoot, cfg, resolved.timeoutMs)
+				printRuntimeEffectiveConfig(cmd.OutOrStdout(), eng, resolved.timeoutMs)
+			}
+			metas := eng.Skills()
+			sort.Slice(metas, func(i, j int) bool { return metas[i].Name < metas[j].Name })
+			if jsonOutput {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(metas)
+			}
+			for _, m := range metas {
+				fmt.Fprintf(cmd.OutOrStdout(), "- %s\n", m.Name)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output as JSON")
+	return cmd
+}
+
+func newConfigCmd(opts *cliOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "config",
+		Short: "Print effective CLI/runtime config",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved := resolveCLIOptions(cmd, *opts)
+			eng, repoRoot, cfg, err := initEngine(cmd.Context(), resolved)
+			if err != nil {
+				return err
+			}
+			defer eng.Close()
+			printEffectiveConfig(cmd.OutOrStdout(), repoRoot, cfg, resolved.timeoutMs)
+			printRuntimeEffectiveConfig(cmd.OutOrStdout(), eng, resolved.timeoutMs)
+			return nil
+		},
+	}
+}
+
+func newAPICmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "api",
+		Short: "API mode placeholder",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.OutOrStdout(), "A dedicated `api` subcommand is not implemented in this CLI.")
+			fmt.Fprintln(cmd.OutOrStdout(), "Use one-shot mode instead:")
+			fmt.Fprintln(cmd.OutOrStdout(), "  alicloud-skills run \"<prompt>\" [flags]")
+			fmt.Fprintln(cmd.OutOrStdout(), "  alicloud-skills -e \"<prompt>\" [flags]")
+			return nil
+		},
+	}
+}
+
+func resolveCLIOptions(cmd *cobra.Command, in cliOptions) cliOptions {
+	out := in
+	if strings.TrimSpace(out.modelName) == "" {
+		out.modelName = strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_MODEL"))
+	}
+	if strings.TrimSpace(out.modelName) == "" {
+		out.modelName = agent.DefaultModel
+	}
+	if strings.TrimSpace(out.configRoot) == "" {
+		out.configRoot = strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_SETTINGS_ROOT"))
+	}
+	if !flagChanged(cmd, "timeout-ms") {
+		if v := strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_TIMEOUT_MS")); v != "" {
+			if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+				out.timeoutMs = parsed
+			}
 		}
 	}
-	if v := strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_SKILLS_RECURSIVE")); v != "" {
-		if parsed, err := strconv.ParseBool(v); err == nil {
-			skillsRecursive = parsed
+	if !flagChanged(cmd, "skills-recursive") {
+		if v := strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_SKILLS_RECURSIVE")); v != "" {
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				out.skillsRecursive = parsed
+			}
 		}
 	}
+	return out
+}
 
+func flagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	if f := cmd.Flags().Lookup(name); f != nil && f.Changed {
+		return true
+	}
+	if f := cmd.InheritedFlags().Lookup(name); f != nil && f.Changed {
+		return true
+	}
+	return false
+}
+
+func initEngine(ctx context.Context, opts cliOptions) (*agent.Engine, string, agent.Config, error) {
 	repoRoot := agent.ResolveRepoRoot("")
 	cfg := agent.Config{
 		RepoRoot:        repoRoot,
-		ConfigRoot:      strings.TrimSpace(configRoot),
-		ModelName:       modelName,
-		SkillsRecursive: boolPtr(skillsRecursive),
+		ConfigRoot:      strings.TrimSpace(opts.configRoot),
+		ModelName:       opts.modelName,
+		SkillsRecursive: boolPtr(opts.skillsRecursive),
 	}
-	if len(skillsDirs) > 0 {
-		cfg.SkillsDirs = make([]string, 0, len(skillsDirs))
-		for _, d := range skillsDirs {
+	if len(opts.skillsDirs) > 0 {
+		cfg.SkillsDirs = make([]string, 0, len(opts.skillsDirs))
+		for _, d := range opts.skillsDirs {
 			cfg.SkillsDirs = append(cfg.SkillsDirs, filepath.Clean(strings.TrimSpace(d)))
 		}
 	}
-	if printConfig {
-		printEffectiveConfig(os.Stdout, repoRoot, cfg, timeoutMs)
+	if opts.printConfig {
+		printEffectiveConfig(os.Stdout, repoRoot, cfg, opts.timeoutMs)
 	}
 
-	eng, err := agent.NewEngine(context.Background(), cfg)
+	eng, err := agent.NewEngine(ctx, cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "init failed: %v\n", err)
-		os.Exit(1)
+		return nil, "", cfg, fmt.Errorf("init failed: %w", err)
+	}
+	return eng, repoRoot, cfg, nil
+}
+
+func runOneShot(ctx context.Context, opts cliOptions, prompt string) error {
+	eng, _, _, err := initEngine(ctx, opts)
+	if err != nil {
+		return err
 	}
 	defer eng.Close()
 
-	if execute != "" {
-		runSessionID := strings.TrimSpace(sessionID)
-		if runSessionID == "" {
-			runSessionID = uuid.NewString()
-		}
-		if err := runStream(eng, runSessionID, execute, timeoutMs, verbose, waterfall); err != nil {
-			fmt.Fprintf(os.Stderr, "run failed: %v\n", err)
-			os.Exit(1)
-		}
-		return
+	runSessionID := strings.TrimSpace(opts.sessionID)
+	if runSessionID == "" {
+		runSessionID = uuid.NewString()
 	}
+	if err := runStream(eng, runSessionID, prompt, opts.timeoutMs, opts.verbose, opts.waterfall); err != nil {
+		return fmt.Errorf("run failed: %w", err)
+	}
+	return nil
+}
+
+func runInteractive(ctx context.Context, opts cliOptions) error {
+	eng, _, _, err := initEngine(ctx, opts)
+	if err != nil {
+		return err
+	}
+	defer eng.Close()
 
 	printBanner(eng.ModelName(), eng.Skills())
-	if printConfig {
-		printRuntimeEffectiveConfig(os.Stdout, eng, timeoutMs)
+	if opts.printConfig {
+		printRuntimeEffectiveConfig(os.Stdout, eng, opts.timeoutMs)
 	}
-	runREPL(eng, timeoutMs, verbose, waterfall, sessionID)
+	runREPL(eng, opts.timeoutMs, opts.verbose, opts.waterfall, opts.sessionID)
+	return nil
 }
 
-func detectSubcommandHelp(args []string) (string, bool) {
-	if len(args) == 0 {
-		return "", false
-	}
-
-	first := strings.ToLower(strings.TrimSpace(args[0]))
-	rest := args[1:]
-
-	isHelpFlag := func(v string) bool {
-		v = strings.ToLower(strings.TrimSpace(v))
-		return v == "-h" || v == "--help" || v == "help"
-	}
-
-	hasHelpFlag := func(list []string) bool {
-		for _, a := range list {
-			if isHelpFlag(a) {
-				return true
-			}
+func maybePrependStdin(prompt string) (string, error) {
+	if fi, err := os.Stdin.Stat(); err == nil {
+		if (fi.Mode()&os.ModeNamedPipe) == 0 && !fi.Mode().IsRegular() {
+			return prompt, nil
 		}
-		return false
+	} else {
+		return prompt, err
 	}
-
-	switch first {
-	case "help":
-		if len(rest) == 0 {
-			return "root", true
-		}
-		switch strings.ToLower(strings.TrimSpace(rest[0])) {
-		case "run":
-			return "run", true
-		case "api":
-			return "api", true
-		default:
-			return "root", true
-		}
-	case "run":
-		if hasHelpFlag(rest) {
-			return "run", true
-		}
-	case "api":
-		if hasHelpFlag(rest) {
-			return "api", true
-		}
+	b, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return prompt, err
 	}
-
-	return "", false
-}
-
-func printSubcommandHelp(out io.Writer, topic string) {
-	if out == nil {
-		return
+	stdinText := strings.TrimSpace(string(b))
+	if stdinText == "" {
+		return prompt, nil
 	}
-	switch topic {
-	case "run":
-		fmt.Fprintln(out, "alicloud-skills run: execute mode")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "Use root flags for one-shot execution:")
-		fmt.Fprintln(out, "  alicloud-skills -e \"<prompt>\" [flags]")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "Useful flags:")
-		fmt.Fprintln(out, "  -e, --execute     Execute a single prompt and exit")
-		fmt.Fprintln(out, "  -timeout-ms       Run timeout in milliseconds")
-		fmt.Fprintln(out, "  -session-id       Session ID for one-shot mode")
-		fmt.Fprintln(out, "  -model            Model name")
-		fmt.Fprintln(out, "  -skills-dir       Skills directory (repeatable)")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "Examples:")
-		fmt.Fprintln(out, "  alicloud-skills -e \"ping\"")
-		fmt.Fprintln(out, "  alicloud-skills -e \"列出 ECS 实例\" -timeout-ms 120000")
-	case "api":
-		fmt.Fprintln(out, "alicloud-skills api: API mode")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "A dedicated `api` subcommand is not implemented in this CLI.")
-		fmt.Fprintln(out, "Use one-shot mode instead:")
-		fmt.Fprintln(out, "  alicloud-skills -e \"<prompt>\" [flags]")
-	default:
-		fmt.Fprintln(out, "Alibaba Cloud Agent CLI")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "Usage:")
-		fmt.Fprintln(out, "  alicloud-skills [flags]")
-		fmt.Fprintln(out, "  alicloud-skills -e \"<prompt>\" [flags]")
-		fmt.Fprintln(out, "  alicloud-skills help [run|api]")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "Subcommand help shortcuts:")
-		fmt.Fprintln(out, "  alicloud-skills run --help")
-		fmt.Fprintln(out, "  alicloud-skills api --help")
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "For full flag list: alicloud-skills --help")
+	if strings.TrimSpace(prompt) == "" {
+		return stdinText, nil
 	}
+	return stdinText + "\n\n" + prompt, nil
 }
 
 func printBanner(modelName string, metas []agent.SkillMeta) {
@@ -499,8 +586,8 @@ func (w *waterfallTracer) appendLLMDelta(evt api.StreamEvent) {
 		return
 	}
 	w.currentLLM.Summary += evt.Delta.Text
-	if len(w.currentLLM.Summary) > 200 {
-		w.currentLLM.Summary = w.currentLLM.Summary[:197] + "..."
+	if runeCount(w.currentLLM.Summary) > 200 {
+		w.currentLLM.Summary = truncateSummary(w.currentLLM.Summary, 200)
 	}
 }
 
@@ -632,10 +719,10 @@ func (w *waterfallTracer) Print(out io.Writer) {
 		}
 	}
 
-	fmt.Fprintln(out, "\n[waterfall] summary")
-	fmt.Fprintf(out, "[waterfall] total_ms=%d steps=%d llm=%d tool=%d llm_tokens=%d/%d/%d session=%s\n",
+	fmt.Fprintln(out, "\n[waterfall]")
+	fmt.Fprintf(out, "  summary: total_ms=%d steps=%d llm=%d tool=%d llm_tokens=%d/%d/%d session=%s\n",
 		total, len(w.steps), llmCount, toolCount, totalIn, totalOut, totalTokens, w.sessionID)
-	fmt.Fprintln(out, "[waterfall] timeline")
+	fmt.Fprintln(out, "  timeline:")
 	const maxBarWidth = 24
 	useANSI := supportsANSI(out)
 	for i, step := range w.steps {
@@ -663,7 +750,7 @@ func (w *waterfallTracer) Print(out io.Writer) {
 			bar = colorize(bar, barColor, true)
 			detail = colorize(detail, ansiDim, true)
 		}
-		fmt.Fprintf(out, "[waterfall] %6.1fs | %-18s %s %6s %5.1f%% %s\n",
+		fmt.Fprintf(out, "    %6.1fs | %-18s %s %6s %5.1f%% %s\n",
 			float64(startMs)/1000.0,
 			label,
 			bar,
@@ -672,8 +759,8 @@ func (w *waterfallTracer) Print(out io.Writer) {
 			detail,
 		)
 	}
-	fmt.Fprintf(out, "[waterfall] %6.1fs | done\n", float64(total)/1000.0)
-	fmt.Fprintf(out, "[waterfall] total_ms=%d llm_tokens=%d/%d/%d session=%s\n", total, totalIn, totalOut, totalTokens, w.sessionID)
+	fmt.Fprintf(out, "    %6.1fs | done\n", float64(total)/1000.0)
+	fmt.Fprintf(out, "  total: total_ms=%d llm_tokens=%d/%d/%d session=%s\n", total, totalIn, totalOut, totalTokens, w.sessionID)
 }
 
 func durationMs(start, end time.Time) int64 {
@@ -706,13 +793,21 @@ func summarizeOutput(v any) string {
 
 func truncateSummary(s string, max int) string {
 	s = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", " "), "\t", " "))
-	if max <= 0 || len(s) <= max {
+	if max <= 0 {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
 		return s
 	}
 	if max <= 3 {
-		return s[:max]
+		return string(runes[:max])
 	}
-	return s[:max-3] + "..."
+	return string(runes[:max-3]) + "..."
+}
+
+func runeCount(s string) int {
+	return len([]rune(s))
 }
 
 func renderDurationBar(dur, max int64, width int) string {

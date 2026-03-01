@@ -3,8 +3,10 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/godeps/agentkit/pkg/model"
 )
@@ -71,5 +73,15 @@ func TestMiddlewareUsage(t *testing.T) {
 	})
 	if got.TotalTokens != 7 {
 		t.Fatalf("unexpected usage: %+v", got)
+	}
+}
+
+func TestMiddlewarePreviewUTF8Safe(t *testing.T) {
+	longChinese := strings.Repeat("阿里云模型输出", 40)
+	resp := &model.Response{}
+	resp.Message.Content = longChinese
+	got := middlewarePreview(resp)
+	if !utf8.ValidString(got) || strings.ContainsRune(got, '�') {
+		t.Fatalf("unexpected utf8 corruption: %q", got)
 	}
 }

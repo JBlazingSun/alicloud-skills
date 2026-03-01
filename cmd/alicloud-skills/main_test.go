@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/cinience/alicloud-skills/internal/agent"
 )
@@ -39,36 +40,33 @@ func TestPrintEffectiveConfig(t *testing.T) {
 	}
 }
 
-func TestDetectSubcommandHelp(t *testing.T) {
-	cases := []struct {
-		name   string
-		args   []string
-		want   string
-		wantOK bool
-	}{
-		{name: "run help flag", args: []string{"run", "--help"}, want: "run", wantOK: true},
-		{name: "api help short", args: []string{"api", "-h"}, want: "api", wantOK: true},
-		{name: "help run", args: []string{"help", "run"}, want: "run", wantOK: true},
-		{name: "help root", args: []string{"help"}, want: "root", wantOK: true},
-		{name: "normal flags", args: []string{"-e", "ping"}, want: "", wantOK: false},
-		{name: "run without help", args: []string{"run"}, want: "", wantOK: false},
+func TestRootHelpIncludesSubcommands(t *testing.T) {
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute help: %v", err)
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := detectSubcommandHelp(tc.args)
-			if ok != tc.wantOK || got != tc.want {
-				t.Fatalf("detectSubcommandHelp(%v) = (%q,%v), want (%q,%v)", tc.args, got, ok, tc.want, tc.wantOK)
-			}
-		})
+	for _, sub := range []string{"run", "repl", "skills", "config", "api"} {
+		if !strings.Contains(out.String(), sub) {
+			t.Fatalf("missing subcommand %q in output: %s", sub, out.String())
+		}
 	}
 }
 
-func TestPrintSubcommandHelp(t *testing.T) {
+func TestAPICommand(t *testing.T) {
+	cmd := newRootCmd()
 	var buf bytes.Buffer
-	printSubcommandHelp(&buf, "run")
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"api"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute api: %v", err)
+	}
 	out := buf.String()
-	for _, sub := range []string{"alicloud-skills run: execute mode", "alicloud-skills -e"} {
+	for _, sub := range []string{"not implemented", "alicloud-skills run"} {
 		if !strings.Contains(out, sub) {
 			t.Fatalf("missing %q in output: %s", sub, out)
 		}
@@ -85,6 +83,9 @@ func TestTruncateSummary(t *testing.T) {
 	}
 	if got := truncateSummary("abc", 0); got != "abc" {
 		t.Fatalf("unexpected no-limit result: %q", got)
+	}
+	if got := truncateSummary("你好，世界，欢迎使用瀑布流", 8); strings.ContainsRune(got, '�') || !utf8.ValidString(got) {
+		t.Fatalf("unexpected utf8 corruption: %q", got)
 	}
 }
 
@@ -114,14 +115,15 @@ func TestWaterfallPrintIncludesLLMTokens(t *testing.T) {
 	tracer.Print(&buf)
 	out := buf.String()
 	for _, sub := range []string{
-		"[waterfall] summary",
-		"[waterfall] timeline",
+		"\n[waterfall]\n",
+		"summary: total_ms=",
+		"timeline:",
 		"steps=2 llm=1 tool=1",
 		"in=11 out=7 total=18",
 		"6.0%",
 		"LLM #1",
 		"Tool-file_read",
-		"[waterfall] total_ms=",
+		"total: total_ms=",
 	} {
 		if !strings.Contains(out, sub) {
 			t.Fatalf("missing %q in output: %s", sub, out)

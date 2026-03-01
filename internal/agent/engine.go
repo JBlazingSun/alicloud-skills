@@ -560,9 +560,19 @@ func middlewarePreview(out any) string {
 		}
 		text = "tool_calls: " + strings.Join(names, ",")
 	}
-	const maxLen = 120
-	if len(text) > maxLen {
-		return text[:maxLen] + "..."
+	return truncateRunes(text, 120)
+}
+
+func truncateRunes(s string, max int) string {
+	if max <= 0 {
+		return s
 	}
-	return text
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
 }

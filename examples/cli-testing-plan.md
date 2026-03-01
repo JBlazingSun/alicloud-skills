@@ -92,7 +92,7 @@ go build -o /tmp/alicloud-skills-cli ./cmd/alicloud-skills
 ```
 
 通过标准：
-- `run --help` 输出 one-shot 执行说明（不进入 REPL）
+- `run --help` 输出 `run [prompt...]` 与非交互执行说明（不进入 REPL）
 - `api --help` 明确提示“当前无独立 api 子命令，使用 `-e`”
 - `help` 输出根用法及快捷帮助
 
@@ -274,7 +274,7 @@ printf '/model\n/new\n/session\n/quit\n' | /tmp/alicloud-skills-cli
   - ASR（长音频异步）：`qwen3-asr-flash-filetrans`
 
 3. `run --help` 进入 REPL
-- 确认已包含 `cmd/alicloud-skills/main.go` 的子命令帮助拦截逻辑
+- 确认为 Cobra 子命令帮助输出，且不会进入 REPL
 - 重新 `go build` 后再测
 
 4. 技能重复加载 warning 过多

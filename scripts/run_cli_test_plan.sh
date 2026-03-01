@@ -197,13 +197,13 @@ run_l1() {
     record_case "L1" "--help" "fail" "see $(basename "$log1")" "$s1"
   fi
 
-  if [[ $rc2 -eq 0 ]] && contains 'Alibaba Cloud Agent CLI' "$log2"; then
+  if [[ $rc2 -eq 0 ]] && contains 'Alibaba Cloud Agent CLI|Alibaba Cloud skill-powered CLI' "$log2"; then
     record_case "L1" "help" "pass" "shortcut help ok" "$s2"
   else
     record_case "L1" "help" "fail" "see $(basename "$log2")" "$s2"
   fi
 
-  if [[ $rc3 -eq 0 ]] && contains 'execute mode' "$log3"; then
+  if [[ $rc3 -eq 0 ]] && contains 'run \[prompt\.\.\.\]|non-interactive prompt' "$log3"; then
     record_case "L1" "run --help" "pass" "subcommand help routed" "$s3"
   else
     record_case "L1" "run --help" "fail" "see $(basename "$log3")" "$s3"
