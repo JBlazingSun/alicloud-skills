@@ -49,26 +49,6 @@ dashscope_api_key = your-dashscope-api-key
 
 For STS, set `type = sts` and add `security_token = your-sts-token`.
 
-### CLI Precedence (alicloud-skills)
-
-Configuration precedence (high to low):
-
-1. CLI flags
-2. Environment variables
-3. `settings.local.json`
-4. `settings.json`
-5. Built-in defaults
-
-Recommended flags:
-
-- `--config-root`
-- `--skills-dir` (repeatable)
-- `--skills-recursive`
-- `--timeout-ms`
-- `--session-id`
-- `--print-effective-config`
-- `--verbose`
-
 ## Examples (Docs Review & Benchmark)
 
 1) Product docs + API docs review

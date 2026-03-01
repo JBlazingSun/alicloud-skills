@@ -50,27 +50,6 @@ dashscope_api_key = 你的DashScope API Key
 
 如使用 STS，请设置 `type = sts` 并补充 `security_token = 你的STS Token`。
 
-### CLI 配置优先级（alicloud-skills）
-
-配置优先级（从高到低）：
-
-1. CLI 参数
-2. 环境变量
-3. `settings.local.json`
-4. `settings.json`
-5. 内置默认值
-
-推荐使用的参数：
-
-- `--config-root`
-- `--skills-dir`（可重复）
-- `--skills-recursive`
-- `--timeout-ms`
-- `--session-id`
-- `--print-effective-config`
-- `--verbose`
-
-
 ## 独立技能与提示词（示例）
 
 1) 文生图（Qwen Image）
