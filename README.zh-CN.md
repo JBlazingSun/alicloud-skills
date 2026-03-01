@@ -50,6 +50,18 @@ dashscope_api_key = 你的DashScope API Key
 
 如使用 STS，请设置 `type = sts` 并补充 `security_token = 你的STS Token`。
 
+## 示例（文档评审与跨云对比）
+
+1) 产品文档 + API 文档评审
+
+- 提示词：
+  “用 `alicloud-platform-docs-api-review` 评审产品 `百炼` 的产品文档与 API 文档，输出 P0/P1/P2 改进建议并附证据链接。”
+
+2) 跨云同类产品对比
+
+- 提示词：
+  “用 `alicloud-platform-multicloud-docs-api-benchmark` 对 `百炼` 做跨云对比（阿里云/AWS/Azure/GCP/腾讯云/火山引擎/华为云），使用 `llm-platform` 预设，输出评分表与改进建议。”
+
 ## 独立技能与提示词（示例）
 
 1) 文生图（Qwen Image）
