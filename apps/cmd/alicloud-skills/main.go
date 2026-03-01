@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,9 +23,17 @@ import (
 
 const (
 	ansiReset  = "\033[0m"
+	ansiBold   = "\033[1m"
 	ansiDim    = "\033[2m"
+	ansiGreen  = "\033[32m"
+	ansiRed    = "\033[31m"
+	ansiBlue   = "\033[34m"
 	ansiCyan   = "\033[36m"
 	ansiYellow = "\033[33m"
+
+	waterfallModeOff     = "off"
+	waterfallModeSummary = "summary"
+	waterfallModeFull    = "full"
 )
 
 func main() {
@@ -43,7 +52,7 @@ type cliOptions struct {
 	sessionID       string
 	printConfig     bool
 	verbose         bool
-	waterfall       bool
+	waterfall       string
 	execute         string
 	skillsDirs      []string
 }
@@ -52,7 +61,7 @@ func newRootCmd() *cobra.Command {
 	opts := &cliOptions{
 		skillsRecursive: true,
 		timeoutMs:       10 * 60 * 1000,
-		waterfall:       true,
+		waterfall:       waterfallModeFull,
 	}
 
 	rootCmd := &cobra.Command{
@@ -75,7 +84,10 @@ func newRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&opts.sessionID, "session-id", "", "Session ID (default: auto-generate)")
 	rootCmd.PersistentFlags().BoolVar(&opts.printConfig, "print-effective-config", false, "Print resolved runtime config before running")
 	rootCmd.PersistentFlags().BoolVar(&opts.verbose, "verbose", false, "Verbose stream diagnostics")
-	rootCmd.PersistentFlags().BoolVar(&opts.waterfall, "waterfall", true, "Print LLM/tool waterfall stats per request")
+	rootCmd.PersistentFlags().StringVar(&opts.waterfall, "waterfall", waterfallModeFull, "Waterfall output mode: off|summary|full")
+	if f := rootCmd.PersistentFlags().Lookup("waterfall"); f != nil {
+		f.NoOptDefVal = waterfallModeFull
+	}
 	rootCmd.PersistentFlags().StringVarP(&opts.execute, "execute", "e", "", "Execute a single prompt and exit")
 	rootCmd.PersistentFlags().StringSliceVar(&opts.skillsDirs, "skills-dir", nil, "Skills directory (repeatable)")
 
@@ -206,6 +218,7 @@ func resolveCLIOptions(cmd *cobra.Command, in cliOptions) cliOptions {
 			}
 		}
 	}
+	out.waterfall = normalizeWaterfallMode(out.waterfall)
 	return out
 }
 
@@ -308,7 +321,7 @@ func printBanner(modelName string, metas []agent.SkillMeta) {
 	fmt.Printf("Commands: /skills /new /model /help /quit\n\n")
 }
 
-func runREPL(eng *agent.Engine, timeoutMs int, verbose, waterfall bool, initialSessionID string) {
+func runREPL(eng *agent.Engine, timeoutMs int, verbose bool, waterfallMode string, initialSessionID string) {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 1024), 1024*1024)
 	sessionID := strings.TrimSpace(initialSessionID)
@@ -334,7 +347,7 @@ func runREPL(eng *agent.Engine, timeoutMs int, verbose, waterfall bool, initialS
 			continue
 		}
 
-		if err := runStream(eng, sessionID, input, timeoutMs, verbose, waterfall); err != nil {
+		if err := runStream(eng, sessionID, input, timeoutMs, verbose, waterfallMode); err != nil {
 			fmt.Fprintf(os.Stderr, "run failed: %v\n", err)
 		}
 	}
@@ -367,7 +380,7 @@ func handleCommand(input string, eng *agent.Engine, sessionID *string) (quit boo
 	return false
 }
 
-func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbose, waterfall bool) error {
+func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbose bool, waterfallMode string) error {
 	ctx := context.Background()
 	cancel := func() {}
 	if timeoutMs > 0 {
@@ -384,7 +397,11 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 
 	tracer := newWaterfallTracer(eng, sessionID)
 	toolStartAt := make(map[string]time.Time)
+	toolNameByID := make(map[string]string)
 	llmBlockOpen := false
+	llmTextBuffer := strings.Builder{}
+	useANSI := supportsANSI(os.Stdout)
+	var imageArtifact *artifactInfo
 
 	for evt := range ch {
 		tracer.OnEvent(evt)
@@ -394,27 +411,26 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 				if !llmBlockOpen {
 					printBlockHeader(os.Stdout, "LLM RESPONSE")
 					llmBlockOpen = true
+					llmTextBuffer.Reset()
 				}
 				fmt.Print(evt.Delta.Text)
+				llmTextBuffer.WriteString(evt.Delta.Text)
 			}
 		case api.EventToolExecutionStart:
 			if llmBlockOpen {
+				toolID := strings.TrimSpace(evt.ToolUseID)
+				if hint := buildLLMToolHint(llmTextBuffer.String(), evt.Name, tracer.toolInputByID[toolID]); hint != "" {
+					fmt.Println(colorize(hint, ansiDim, useANSI))
+				}
 				printBlockFooter(os.Stdout)
 				llmBlockOpen = false
 			}
 			if evt.Name != "" {
 				toolID := strings.TrimSpace(evt.ToolUseID)
+				toolNameByID[toolID] = evt.Name
 				toolStartAt[toolID] = time.Now()
-				printBlockHeader(os.Stdout, "TOOL START")
-				if toolID != "" {
-					fmt.Printf("name: %s\nid:   %s\n", evt.Name, toolID)
-				} else {
-					fmt.Printf("name: %s\n", evt.Name)
-				}
-				if inputSummary := strings.TrimSpace(tracer.toolInputByID[toolID]); inputSummary != "" {
-					fmt.Printf("input: %s\n", truncateSummary(inputSummary, 180))
-				}
-				printBlockFooter(os.Stdout)
+				inputSummary := strings.TrimSpace(tracer.toolInputByID[toolID])
+				printToolProgressLine(os.Stdout, useANSI, "running", evt.Name, toolID, 0, inputSummary, "")
 			}
 		case api.EventToolExecutionResult:
 			if llmBlockOpen {
@@ -423,6 +439,9 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 			}
 			if evt.Name != "" {
 				toolID := strings.TrimSpace(evt.ToolUseID)
+				if strings.TrimSpace(evt.Name) == "" {
+					evt.Name = toolNameByID[toolID]
+				}
 				dur := int64(0)
 				if started, ok := toolStartAt[toolID]; ok {
 					dur = durationMs(started, time.Now())
@@ -432,19 +451,11 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 				if evt.IsError != nil && *evt.IsError {
 					status = "error"
 				}
-				printBlockHeader(os.Stdout, "TOOL END")
-				if toolID != "" {
-					fmt.Printf("name:   %s\nid:     %s\nstatus: %s\ncost:   %s\n", evt.Name, toolID, status, formatDurationMs(dur))
-				} else {
-					fmt.Printf("name:   %s\nstatus: %s\ncost:   %s\n", evt.Name, status, formatDurationMs(dur))
+				outputSummary := strings.TrimSpace(truncateSummaryHeadTail(summarizeOutput(evt.Output), 120, 80))
+				printToolProgressLine(os.Stdout, useANSI, status, evt.Name, toolID, dur, "", outputSummary)
+				if a, ok := detectArtifactInfo(evt.Output); ok {
+					imageArtifact = &a
 				}
-				outputSummary := strings.TrimSpace(truncateSummary(summarizeOutput(evt.Output), 240))
-				if outputSummary != "" {
-					fmt.Printf("output: %s\n", outputSummary)
-				} else if verbose {
-					fmt.Printf("output: (empty)\n")
-				}
-				printBlockFooter(os.Stdout)
 			}
 		case api.EventMessageStop:
 			if llmBlockOpen {
@@ -471,8 +482,11 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 	if llmBlockOpen {
 		printBlockFooter(os.Stdout)
 	}
-	if waterfall {
-		tracer.Print(os.Stderr)
+	if imageArtifact != nil {
+		printArtifactCard(os.Stdout, useANSI, *imageArtifact)
+	}
+	if normalizeWaterfallMode(waterfallMode) != waterfallModeOff {
+		tracer.Print(os.Stdout, normalizeWaterfallMode(waterfallMode))
 	}
 	return nil
 }
@@ -481,7 +495,17 @@ func printBlockHeader(out io.Writer, title string) {
 	if out == nil {
 		return
 	}
-	fmt.Fprintf(out, "\n=== %s ===\n", strings.TrimSpace(title))
+	useANSI := supportsANSI(out)
+	trimmed := strings.TrimSpace(title)
+	if trimmed == "LLM RESPONSE" {
+		fmt.Fprintf(out, "\n%s\n", colorize("[LLM]", ansiCyan, useANSI))
+		return
+	}
+	header := trimmed
+	if useANSI {
+		header = colorize(trimmed, blockHeaderColor(trimmed), true)
+	}
+	fmt.Fprintf(out, "\n=== %s ===\n", header)
 }
 
 func printBlockFooter(out io.Writer) {
@@ -720,8 +744,12 @@ func (w *waterfallTracer) finishLLMStep(now time.Time) {
 	w.currentLLM = nil
 }
 
-func (w *waterfallTracer) Print(out io.Writer) {
+func (w *waterfallTracer) Print(out io.Writer, mode string) {
 	if w == nil || out == nil {
+		return
+	}
+	mode = normalizeWaterfallMode(mode)
+	if mode == waterfallModeOff {
 		return
 	}
 	if w.currentLLM != nil {
@@ -769,6 +797,15 @@ func (w *waterfallTracer) Print(out io.Writer) {
 	printBlockHeader(out, "WATERFALL")
 	fmt.Fprintf(out, "summary: total_ms=%d steps=%d llm=%d tool=%d llm_tokens=%d/%d/%d session=%s\n",
 		total, len(w.steps), llmCount, toolCount, totalIn, totalOut, totalTokens, w.sessionID)
+	if mode == waterfallModeSummary {
+		fmt.Fprintln(out, "top_steps:")
+		for _, line := range topStepLines(w.steps, total) {
+			fmt.Fprintf(out, "  %s\n", line)
+		}
+		fmt.Fprintf(out, "total: total_ms=%d llm_tokens=%d/%d/%d session=%s\n", total, totalIn, totalOut, totalTokens, w.sessionID)
+		printBlockFooter(out)
+		return
+	}
 	fmt.Fprintln(out, "timeline:")
 	const maxBarWidth = 24
 	useANSI := supportsANSI(out)
@@ -809,6 +846,36 @@ func (w *waterfallTracer) Print(out io.Writer) {
 	fmt.Fprintf(out, "  %6.1fs | done\n", float64(total)/1000.0)
 	fmt.Fprintf(out, "total: total_ms=%d llm_tokens=%d/%d/%d session=%s\n", total, totalIn, totalOut, totalTokens, w.sessionID)
 	printBlockFooter(out)
+}
+
+func topStepLines(steps []waterfallStep, total int64) []string {
+	type ranked struct {
+		idx  int
+		step waterfallStep
+	}
+	rankedSteps := make([]ranked, 0, len(steps))
+	for i, st := range steps {
+		rankedSteps = append(rankedSteps, ranked{idx: i, step: st})
+	}
+	sort.SliceStable(rankedSteps, func(i, j int) bool {
+		return rankedSteps[i].step.DurationMs > rankedSteps[j].step.DurationMs
+	})
+	if len(rankedSteps) > 3 {
+		rankedSteps = rankedSteps[:3]
+	}
+	lines := make([]string, 0, len(rankedSteps))
+	for i, r := range rankedSteps {
+		label := "Tool-" + strings.TrimSpace(r.step.Name)
+		if r.step.Kind == "llm" {
+			label = fmt.Sprintf("LLM #%d", r.idx+1)
+		}
+		share := 0.0
+		if total > 0 {
+			share = float64(r.step.DurationMs) * 100 / float64(total)
+		}
+		lines = append(lines, fmt.Sprintf("%d) %s %s (%0.1f%%)", i+1, label, formatDurationMs(r.step.DurationMs), share))
+	}
+	return lines
 }
 
 func durationMs(start, end time.Time) int64 {
@@ -852,6 +919,15 @@ func truncateSummary(s string, max int) string {
 		return string(runes[:max])
 	}
 	return string(runes[:max-3]) + "..."
+}
+
+func truncateSummaryHeadTail(s string, head, tail int) string {
+	s = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", " "), "\t", " "))
+	runes := []rune(s)
+	if head <= 0 || tail <= 0 || len(runes) <= head+tail+5 {
+		return s
+	}
+	return string(runes[:head]) + " ... " + string(runes[len(runes)-tail:])
 }
 
 func runeCount(s string) int {
@@ -992,4 +1068,238 @@ func colorize(s, ansi string, enabled bool) string {
 		return s
 	}
 	return ansi + s + ansiReset
+}
+
+func buildLLMToolHint(llmText, toolName, inputSummary string) string {
+	if !isThinLLMText(llmText) {
+		return ""
+	}
+	toolName = strings.TrimSpace(toolName)
+	if toolName == "" {
+		return ""
+	}
+	inputSummary = strings.TrimSpace(inputSummary)
+	if inputSummary == "" {
+		return fmt.Sprintf("note: switching to tool call: %s", toolName)
+	}
+	return fmt.Sprintf("note: switching to tool call: %s (%s)", toolName, truncateSummaryHeadTail(inputSummary, 72, 40))
+}
+
+func isThinLLMText(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return true
+	}
+	letters := 0
+	for _, r := range trimmed {
+		switch {
+		case r >= 'a' && r <= 'z':
+			letters++
+		case r >= 'A' && r <= 'Z':
+			letters++
+		case r >= '0' && r <= '9':
+			letters++
+		case r >= 0x4e00 && r <= 0x9fff:
+			letters++
+		}
+	}
+	return letters <= 1
+}
+
+func blockHeaderColor(title string) string {
+	switch strings.TrimSpace(title) {
+	case "RESULT":
+		return ansiGreen
+	case "WATERFALL":
+		return ansiYellow
+	case "ERROR":
+		return ansiRed
+	case "TOOL START", "TOOL END":
+		return ansiBlue
+	default:
+		return ansiCyan
+	}
+}
+
+func normalizeWaterfallMode(v string) string {
+	normalized := strings.ToLower(strings.TrimSpace(v))
+	switch normalized {
+	case "", "true", "on", "1", waterfallModeSummary:
+		return waterfallModeSummary
+	case "false", "off", "0", "none":
+		return waterfallModeOff
+	case waterfallModeFull:
+		return waterfallModeFull
+	default:
+		return waterfallModeSummary
+	}
+}
+
+func statusBadge(status string, ansi bool) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "running":
+		return colorize("[RUNNING]", ansiBlue, ansi)
+	case "error":
+		return colorize("[ERROR]", ansiRed, ansi)
+	default:
+		return colorize("[OK]", ansiGreen, ansi)
+	}
+}
+
+func printToolProgressLine(out io.Writer, ansi bool, status, name, toolID string, durationMs int64, inputSummary, outputSummary string) {
+	if out == nil {
+		return
+	}
+	name = strings.TrimSpace(name)
+	toolID = strings.TrimSpace(toolID)
+	meta := name
+	if toolID != "" {
+		meta = fmt.Sprintf("%s id=%s", name, toolID)
+	}
+	line := fmt.Sprintf("%s %s", statusBadge(status, ansi), meta)
+	if durationMs > 0 && status != "running" {
+		line += " " + colorize(fmt.Sprintf("cost=%s", formatDurationMs(durationMs)), ansiDim, ansi)
+	}
+	if in := strings.TrimSpace(inputSummary); in != "" {
+		line += " " + colorize("input="+truncateSummaryHeadTail(in, 80, 48), ansiDim, ansi)
+	}
+	if outSum := strings.TrimSpace(outputSummary); outSum != "" {
+		line += " " + colorize("output="+truncateSummaryHeadTail(outSum, 80, 48), ansiDim, ansi)
+	}
+	fmt.Fprintln(out, line)
+}
+
+type artifactInfo struct {
+	Path       string
+	Dimensions string
+	Format     string
+	Size       string
+}
+
+var (
+	imagePathPattern   = regexp.MustCompile(`(?:^|[\s"'` + "`" + `])(output/[^\s"'` + "`" + `]+\.(?:png|jpg|jpeg|webp))(?:$|[\s"'` + "`" + `])`)
+	dimensionPattern   = regexp.MustCompile(`(\d{2,5})\s*[xX]\s*(\d{2,5})`)
+	imageFormatPattern = regexp.MustCompile(`\b(PNG|JPG|JPEG|WEBP)\b`)
+)
+
+func detectArtifactInfo(v any) (artifactInfo, bool) {
+	var info artifactInfo
+	visitArtifactFields(v, &info)
+	if info.Path == "" {
+		return artifactInfo{}, false
+	}
+	return info, true
+}
+
+func visitArtifactFields(v any, info *artifactInfo) {
+	if info == nil || v == nil {
+		return
+	}
+	switch typed := v.(type) {
+	case map[string]any:
+		for k, val := range typed {
+			key := strings.ToLower(strings.TrimSpace(k))
+			if info.Path == "" && (strings.Contains(key, "path") || key == "saved") {
+				if s, ok := val.(string); ok {
+					tryExtractFromString(s, info)
+				}
+			}
+			if info.Dimensions == "" && (key == "dimensions" || key == "size") {
+				if s, ok := val.(string); ok {
+					tryExtractFromString(s, info)
+				}
+			}
+			if info.Format == "" && key == "format" {
+				if s, ok := val.(string); ok {
+					info.Format = strings.ToUpper(strings.TrimSpace(s))
+				}
+			}
+			visitArtifactFields(val, info)
+		}
+	case []any:
+		for _, it := range typed {
+			visitArtifactFields(it, info)
+		}
+	case string:
+		tryExtractFromString(typed, info)
+		var nested map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(typed)), &nested); err == nil {
+			visitArtifactFields(nested, info)
+		}
+	}
+}
+
+func tryExtractFromString(s string, info *artifactInfo) {
+	if info == nil {
+		return
+	}
+	txt := strings.TrimSpace(s)
+	if txt == "" {
+		return
+	}
+	if info.Path == "" {
+		if matches := imagePathPattern.FindAllStringSubmatch(txt, -1); len(matches) > 0 {
+			last := matches[len(matches)-1]
+			if len(last) > 1 {
+				info.Path = last[1]
+			}
+		}
+	}
+	if info.Dimensions == "" {
+		if m := dimensionPattern.FindStringSubmatch(txt); len(m) > 2 {
+			info.Dimensions = m[1] + " x " + m[2]
+		}
+	}
+	if info.Format == "" {
+		if m := imageFormatPattern.FindStringSubmatch(strings.ToUpper(txt)); len(m) > 1 {
+			info.Format = m[1]
+		}
+	}
+	if info.Size == "" {
+		lower := strings.ToLower(txt)
+		if strings.Contains(lower, "mb") || strings.Contains(lower, "kb") {
+			info.Size = txt
+		}
+	}
+}
+
+func printArtifactCard(out io.Writer, ansi bool, info artifactInfo) {
+	if out == nil || strings.TrimSpace(info.Path) == "" {
+		return
+	}
+	printBlockHeader(out, "RESULT")
+	title := "Generated File"
+	if ansi {
+		title = colorize(title, ansiBold+ansiGreen, true)
+	}
+	fmt.Fprintf(out, "%s\n", title)
+	pathLabel := "path"
+	pathValue := info.Path
+	if ansi {
+		pathLabel = colorize(pathLabel, ansiCyan, true)
+		pathValue = colorize(pathValue, ansiBold+ansiCyan, true)
+	}
+	fmt.Fprintf(out, "%s: %s\n", pathLabel, pathValue)
+	if strings.TrimSpace(info.Dimensions) != "" {
+		label := "dimensions"
+		if ansi {
+			label = colorize(label, ansiDim, true)
+		}
+		fmt.Fprintf(out, "%s: %s\n", label, info.Dimensions)
+	}
+	if strings.TrimSpace(info.Format) != "" {
+		label := "format"
+		if ansi {
+			label = colorize(label, ansiDim, true)
+		}
+		fmt.Fprintf(out, "%s: %s\n", label, info.Format)
+	}
+	if strings.TrimSpace(info.Size) != "" {
+		label := "size"
+		if ansi {
+			label = colorize(label, ansiDim, true)
+		}
+		fmt.Fprintf(out, "%s: %s\n", label, info.Size)
+	}
+	printBlockFooter(out)
 }

@@ -112,7 +112,7 @@ func TestWaterfallPrintIncludesLLMTokens(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	tracer.Print(&buf)
+	tracer.Print(&buf, waterfallModeFull)
 	out := buf.String()
 	for _, sub := range []string{
 		"\n=== WATERFALL ===\n",
@@ -128,6 +128,37 @@ func TestWaterfallPrintIncludesLLMTokens(t *testing.T) {
 		if !strings.Contains(out, sub) {
 			t.Fatalf("missing %q in output: %s", sub, out)
 		}
+	}
+}
+
+func TestWaterfallPrintSummaryModeCondensesTimeline(t *testing.T) {
+	tracer := &waterfallTracer{
+		sessionID: "s-2",
+		runStart:  time.Now().Add(-3 * time.Second),
+		steps: []waterfallStep{
+			{Kind: "tool", Name: "A", DurationMs: 1800, Summary: "slowest"},
+			{Kind: "llm", Name: "llm_round_1", DurationMs: 600, InputTokens: 3, OutputTokens: 2, TotalTokens: 5},
+			{Kind: "tool", Name: "B", DurationMs: 400, Summary: "mid"},
+			{Kind: "tool", Name: "C", DurationMs: 200, Summary: "fast"},
+		},
+	}
+	var buf bytes.Buffer
+	tracer.Print(&buf, waterfallModeSummary)
+	out := buf.String()
+	for _, sub := range []string{
+		"\n=== WATERFALL ===\n",
+		"summary: total_ms=",
+		"top_steps:",
+		"1) Tool-A",
+		"2) LLM #2",
+		"3) Tool-B",
+	} {
+		if !strings.Contains(out, sub) {
+			t.Fatalf("missing %q in output: %s", sub, out)
+		}
+	}
+	if strings.Contains(out, "timeline:") {
+		t.Fatalf("summary mode should not include full timeline: %s", out)
 	}
 }
 
@@ -161,5 +192,78 @@ func TestPrintBlockFormatting(t *testing.T) {
 		if !strings.Contains(out, sub) {
 			t.Fatalf("missing %q in output: %s", sub, out)
 		}
+	}
+}
+
+func TestPrintBlockHeaderLLMResponseCompact(t *testing.T) {
+	var buf bytes.Buffer
+	printBlockHeader(&buf, "LLM RESPONSE")
+	out := buf.String()
+	if !strings.Contains(out, "[LLM]") {
+		t.Fatalf("missing compact llm header: %s", out)
+	}
+	if strings.Contains(out, "=== LLM RESPONSE ===") {
+		t.Fatalf("legacy llm header should not appear: %s", out)
+	}
+}
+
+func TestTruncateSummaryHeadTail(t *testing.T) {
+	got := truncateSummaryHeadTail("abcdefghijklmnopqrstuvwxyz0123456789", 12, 8)
+	want := "abcdefghijkl ... 23456789"
+	if got != want {
+		t.Fatalf("unexpected head/tail summary: got %q want %q", got, want)
+	}
+	if got := truncateSummaryHeadTail("short", 12, 8); got != "short" {
+		t.Fatalf("short string should stay unchanged: %q", got)
+	}
+}
+
+func TestDetectArtifactInfoPicksLatestPath(t *testing.T) {
+	raw := map[string]any{
+		"output": `old output/ai-image-qwen-image/images/cat.png then new output/ai-image-qwen-image/images/futuristic-city-night-poster.png 1024x1024 PNG`,
+	}
+	info, ok := detectArtifactInfo(raw)
+	if !ok {
+		t.Fatalf("expected artifact info to be detected")
+	}
+	if info.Path != "output/ai-image-qwen-image/images/futuristic-city-night-poster.png" {
+		t.Fatalf("unexpected path: %s", info.Path)
+	}
+	if info.Dimensions != "1024 x 1024" {
+		t.Fatalf("unexpected dimensions: %s", info.Dimensions)
+	}
+	if info.Format != "PNG" {
+		t.Fatalf("unexpected format: %s", info.Format)
+	}
+}
+
+func TestIsThinLLMText(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{in: ".", want: true},
+		{in: " ... ", want: true},
+		{in: "", want: true},
+		{in: "正在生成图片", want: false},
+		{in: "Generating image now", want: false},
+	}
+	for _, tc := range cases {
+		if got := isThinLLMText(tc.in); got != tc.want {
+			t.Fatalf("isThinLLMText(%q)=%v want=%v", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestBuildLLMToolHint(t *testing.T) {
+	hint := buildLLMToolHint(".", "Bash", `description="Generate image" command="python run.py"`)
+	if !strings.Contains(hint, "switching to tool call: Bash") {
+		t.Fatalf("unexpected hint: %q", hint)
+	}
+	if !strings.Contains(hint, "description=") {
+		t.Fatalf("hint should include input summary: %q", hint)
+	}
+	if got := buildLLMToolHint("我先说明步骤", "Bash", "x"); got != "" {
+		t.Fatalf("non-thin llm text should not emit hint: %q", got)
 	}
 }
