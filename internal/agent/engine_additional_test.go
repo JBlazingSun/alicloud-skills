@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/godeps/agentkit/pkg/model"
 )
 
 func TestNormalizedSkillsDirs(t *testing.T) {
@@ -41,5 +44,32 @@ func TestDiscoverSkills(t *testing.T) {
 	}
 	if metas[0].SkillPath == "" {
 		t.Fatalf("expected skill path to be set")
+	}
+}
+
+func TestModelTurnRecorderSince(t *testing.T) {
+	r := newModelTurnRecorder()
+	r.record("s1", ModelTurnStat{Iteration: 1, TotalTokens: 10, Timestamp: time.Now()})
+	r.record("s1", ModelTurnStat{Iteration: 2, TotalTokens: 20, Timestamp: time.Now()})
+
+	if got := r.count("s1"); got != 2 {
+		t.Fatalf("unexpected count: %d", got)
+	}
+	items := r.since("s1", 1)
+	if len(items) != 1 || items[0].Iteration != 2 {
+		t.Fatalf("unexpected since result: %+v", items)
+	}
+}
+
+func TestMiddlewareUsage(t *testing.T) {
+	got := middlewareUsage(map[string]any{
+		"model.usage": model.Usage{
+			InputTokens:  3,
+			OutputTokens: 4,
+			TotalTokens:  7,
+		},
+	})
+	if got.TotalTokens != 7 {
+		t.Fatalf("unexpected usage: %+v", got)
 	}
 }

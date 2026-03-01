@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/godeps/agentkit/pkg/api"
 	"github.com/godeps/agentkit/pkg/config"
 	coreevents "github.com/godeps/agentkit/pkg/core/events"
+	"github.com/godeps/agentkit/pkg/middleware"
 	"github.com/godeps/agentkit/pkg/model"
 	runtimeskills "github.com/godeps/agentkit/pkg/runtime/skills"
 )
@@ -46,8 +48,69 @@ type Engine struct {
 	skillsDirs      []string
 	skillsRecursive bool
 	metas           []SkillMeta
+	turnRecorder    *modelTurnRecorder
 	mu              sync.RWMutex
 	perm            PermissionHandler
+}
+
+type ModelTurnStat struct {
+	Iteration    int
+	InputTokens  int
+	OutputTokens int
+	TotalTokens  int
+	StopReason   string
+	Preview      string
+	Timestamp    time.Time
+}
+
+type modelTurnRecorder struct {
+	mu        sync.RWMutex
+	bySession map[string][]ModelTurnStat
+}
+
+func newModelTurnRecorder() *modelTurnRecorder {
+	return &modelTurnRecorder{bySession: make(map[string][]ModelTurnStat)}
+}
+
+func (r *modelTurnRecorder) record(sessionID string, stat ModelTurnStat) {
+	if r == nil {
+		return
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	items := append(r.bySession[sessionID], stat)
+	if len(items) > 256 {
+		items = items[len(items)-256:]
+	}
+	r.bySession[sessionID] = items
+}
+
+func (r *modelTurnRecorder) count(sessionID string) int {
+	if r == nil {
+		return 0
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.bySession[strings.TrimSpace(sessionID)])
+}
+
+func (r *modelTurnRecorder) since(sessionID string, offset int) []ModelTurnStat {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	items := r.bySession[strings.TrimSpace(sessionID)]
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(items) {
+		return nil
+	}
+	out := make([]ModelTurnStat, len(items)-offset)
+	copy(out, items[offset:])
+	return out
 }
 
 type PermissionDecision string
@@ -99,6 +162,7 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		log.Printf("skill discovery warning: %v", d)
 	}
 	runtimeOverrides := buildRuntimeOverrides(settingsRoot)
+	turnRecorder := newModelTurnRecorder()
 
 	var eng *Engine
 	rt, err := api.New(ctx, api.Options{
@@ -111,9 +175,32 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		SkillsDirs:          cfg.SkillsDirs,
 		SkillsRecursive:     cfg.SkillsRecursive,
 		EnabledBuiltinTools: []string{"bash", "file_read", "file_write", "glob"},
-		DefaultEnableCache:  true,
-		TokenTracking:       true,
-		ApprovalWait:        true,
+		Middleware: []middleware.Middleware{
+			middleware.Funcs{
+				Identifier: "alicloud-skills-model-turn-recorder",
+				OnAfterModel: func(_ context.Context, st *middleware.State) error {
+					if st == nil {
+						return nil
+					}
+					values := st.Values
+					sessionID := middlewareString(values, "session_id")
+					usage := middlewareUsage(values)
+					turnRecorder.record(sessionID, ModelTurnStat{
+						Iteration:    st.Iteration,
+						InputTokens:  usage.InputTokens,
+						OutputTokens: usage.OutputTokens,
+						TotalTokens:  usage.TotalTokens,
+						StopReason:   middlewareString(values, "model.stop_reason"),
+						Preview:      middlewarePreview(st.ModelOutput),
+						Timestamp:    time.Now().UTC(),
+					})
+					return nil
+				},
+			},
+		},
+		DefaultEnableCache: true,
+		TokenTracking:      true,
+		ApprovalWait:       true,
 		PermissionRequestHandler: func(ctx context.Context, req api.PermissionRequest) (coreevents.PermissionDecisionType, error) {
 			if eng == nil {
 				return coreevents.PermissionDeny, nil
@@ -132,6 +219,7 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		skillsDirs:      normalizedSkillsDirs(cfg.RepoRoot, cfg.SkillsDirs),
 		skillsRecursive: cfg.SkillsRecursive == nil || *cfg.SkillsRecursive,
 		metas:           metas,
+		turnRecorder:    turnRecorder,
 	}
 	return eng, nil
 }
@@ -180,6 +268,20 @@ func (e *Engine) SkillsRecursive() bool {
 		return true
 	}
 	return e.skillsRecursive
+}
+
+func (e *Engine) ModelTurnCount(sessionID string) int {
+	if e == nil || e.turnRecorder == nil {
+		return 0
+	}
+	return e.turnRecorder.count(sessionID)
+}
+
+func (e *Engine) ModelTurnsSince(sessionID string, offset int) []ModelTurnStat {
+	if e == nil || e.turnRecorder == nil {
+		return nil
+	}
+	return e.turnRecorder.since(sessionID, offset)
 }
 
 func (e *Engine) EnrichPrompt(prompt string) string {
@@ -412,4 +514,55 @@ func normalizedSkillsDirs(projectRoot string, dirs []string) []string {
 		add(dir)
 	}
 	return out
+}
+
+func middlewareString(values map[string]any, key string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	v, ok := values[key]
+	if !ok {
+		return ""
+	}
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
+}
+
+func middlewareUsage(values map[string]any) model.Usage {
+	if len(values) == 0 {
+		return model.Usage{}
+	}
+	raw, ok := values["model.usage"]
+	if !ok || raw == nil {
+		return model.Usage{}
+	}
+	switch u := raw.(type) {
+	case model.Usage:
+		return u
+	case *model.Usage:
+		if u != nil {
+			return *u
+		}
+	}
+	return model.Usage{}
+}
+
+func middlewarePreview(out any) string {
+	resp, ok := out.(*model.Response)
+	if !ok || resp == nil {
+		return ""
+	}
+	text := strings.TrimSpace(resp.Message.Content)
+	if text == "" && len(resp.Message.ToolCalls) > 0 {
+		names := make([]string, 0, len(resp.Message.ToolCalls))
+		for _, call := range resp.Message.ToolCalls {
+			names = append(names, strings.TrimSpace(call.Name))
+		}
+		text = "tool_calls: " + strings.Join(names, ",")
+	}
+	const maxLen = 120
+	if len(text) > maxLen {
+		return text[:maxLen] + "..."
+	}
+	return text
 }

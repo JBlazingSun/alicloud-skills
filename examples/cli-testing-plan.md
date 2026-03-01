@@ -50,6 +50,20 @@ scripts/run_cli_test_plan.sh --skip-l3
 
 输出目录默认：`output/cli-test/YYYYMMDD-HHMMSS/`，自动生成 `summary.md` 与各项日志。
 
+## 2.2 CLI 内置瀑布流（LLM + Tool）
+
+当需要直接观察单次请求内部的 LLM/tool 交互时，可在 CLI 增加 `--waterfall`：
+
+```bash
+/tmp/alicloud-skills-cli -e "ping" --waterfall -timeout-ms 120000
+```
+
+输出将包含：
+- 每个步骤类型（`llm` / `tool`）
+- 每步耗时（毫秒）
+- 每轮 LLM token（`input/output/total`）
+- 每步大概内容摘要（截断显示）
+
 ## 3. 测试分层
 
 ### L0：静态与构建层
