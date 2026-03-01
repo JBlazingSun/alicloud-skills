@@ -4,7 +4,7 @@
 
 ## 1. 目标与范围
 
-本方案用于系统验证当前仓库 CLI（`cmd/alicloud-skills`）的可用性、稳定性和关键能力链路。
+本方案用于系统验证当前仓库 CLI（`apps/cmd/alicloud-skills`）的可用性、稳定性和关键能力链路。
 
 覆盖范围：
 - 构建与单元测试
@@ -19,7 +19,7 @@
 
 ## 2. 前置条件
 
-1. Go 环境可用（与仓库 `go.mod` 兼容）。
+1. Go 环境可用（与 `apps/go.mod` 兼容）。
 2. 已配置 `DASHSCOPE_API_KEY`（环境变量或 `~/.alibabacloud/credentials`）。
 3. 网络可访问 DashScope 接口。
 4. 在仓库根目录执行所有命令。
@@ -55,7 +55,7 @@ scripts/run_cli_test_plan.sh --skip-l3
 当需要直接观察单次请求内部的 LLM/tool 交互时，可在 CLI 增加 `--waterfall`：
 
 ```bash
-/tmp/alicloud-skills-cli -e "ping" --waterfall -timeout-ms 120000
+/tmp/alicloud-skills-cli -e "ping" --waterfall --timeout-ms 120000
 ```
 
 输出将包含：
@@ -71,9 +71,9 @@ scripts/run_cli_test_plan.sh --skip-l3
 目标：确认代码可编译、核心包测试通过。
 
 ```bash
-go test ./cmd/alicloud-skills/...
-go test ./internal/agent/...
-go build -o /tmp/alicloud-skills-cli ./cmd/alicloud-skills
+go -C apps test ./cmd/alicloud-skills/...
+go -C apps test ./internal/agent/...
+go -C apps build -o /tmp/alicloud-skills-cli ./cmd/alicloud-skills
 ```
 
 通过标准：
@@ -101,7 +101,7 @@ go build -o /tmp/alicloud-skills-cli ./cmd/alicloud-skills
 目标：确认 CLI 可发起一次真实请求并正常退出。
 
 ```bash
-/tmp/alicloud-skills-cli -e "ping" -timeout-ms 120000
+/tmp/alicloud-skills-cli -e "ping" --timeout-ms 120000
 ```
 
 通过标准：
@@ -115,13 +115,13 @@ go build -o /tmp/alicloud-skills-cli ./cmd/alicloud-skills
 #### Case A：中文闭环
 
 ```bash
-/tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-tts to synthesize the exact text '欢迎使用阿里云。' with non-realtime mode, then use alicloud-ai-audio-asr with non-realtime mode to transcribe that generated audio, and finally return: input_text, asr_text, normalized_equal (true/false), plus the audio URL." -timeout-ms 180000
+/tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-tts to synthesize the exact text '欢迎使用阿里云。' with non-realtime mode, then use alicloud-ai-audio-asr with non-realtime mode to transcribe that generated audio, and finally return: input_text, asr_text, normalized_equal (true/false), plus the audio URL." --timeout-ms 180000
 ```
 
 #### Case B：英文闭环
 
 ```bash
-/tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-tts to synthesize the exact text 'Welcome to Alibaba Cloud.' with non-realtime mode, then use alicloud-ai-audio-asr with non-realtime mode to transcribe that generated audio, and finally return: input_text, asr_text, normalized_equal (true/false), plus the audio URL." -timeout-ms 180000
+/tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-tts to synthesize the exact text 'Welcome to Alibaba Cloud.' with non-realtime mode, then use alicloud-ai-audio-asr with non-realtime mode to transcribe that generated audio, and finally return: input_text, asr_text, normalized_equal (true/false), plus the audio URL." --timeout-ms 180000
 ```
 
 通过标准：
@@ -147,7 +147,7 @@ printf '/skills\n/quit\n' | /tmp/alicloud-skills-cli
 2) 文生图最小可用链路
 
 ```bash
-/tmp/alicloud-skills-cli -e "Use alicloud-ai-image-qwen-image to generate a 512*512 minimalist icon about cloud and return output image url only." -timeout-ms 180000
+/tmp/alicloud-skills-cli -e "Use alicloud-ai-image-qwen-image to generate a 512*512 minimalist icon about cloud and return output image url only." --timeout-ms 180000
 ```
 
 通过标准：
@@ -156,7 +156,7 @@ printf '/skills\n/quit\n' | /tmp/alicloud-skills-cli
 3) 向量检索最小问答链路（如账号具备权限）
 
 ```bash
-/tmp/alicloud-skills-cli -e "Use alicloud-ai-search-dashvector to create a small test collection, insert two short docs, and run a topk=2 query. Return only concise result JSON." -timeout-ms 180000
+/tmp/alicloud-skills-cli -e "Use alicloud-ai-search-dashvector to create a small test collection, insert two short docs, and run a topk=2 query. Return only concise result JSON." --timeout-ms 180000
 ```
 
 通过标准：
@@ -167,7 +167,7 @@ printf '/skills\n/quit\n' | /tmp/alicloud-skills-cli
 4) 非法模型名应可诊断
 
 ```bash
-/tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-asr with model 'qwen3-asr-flash-xxx' to transcribe https://dashscope.oss-cn-beijing.aliyuncs.com/audios/welcome.mp3 and show raw error." -timeout-ms 120000
+/tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-asr with model 'qwen3-asr-flash-xxx' to transcribe https://dashscope.oss-cn-beijing.aliyuncs.com/audios/welcome.mp3 and show raw error." --timeout-ms 120000
 ```
 
 通过标准：
@@ -176,7 +176,7 @@ printf '/skills\n/quit\n' | /tmp/alicloud-skills-cli
 5) 缺少鉴权时的失败语义
 
 ```bash
-env -u DASHSCOPE_API_KEY /tmp/alicloud-skills-cli -e "ping" -timeout-ms 120000
+env -u DASHSCOPE_API_KEY /tmp/alicloud-skills-cli -e "ping" --timeout-ms 120000
 ```
 
 通过标准：
@@ -185,7 +185,7 @@ env -u DASHSCOPE_API_KEY /tmp/alicloud-skills-cli -e "ping" -timeout-ms 120000
 6) 超时控制有效性
 
 ```bash
-/tmp/alicloud-skills-cli -e "Use alicloud-ai-video-wan-video to generate a video and wait for final url." -timeout-ms 1000
+/tmp/alicloud-skills-cli -e "Use alicloud-ai-video-wan-video to generate a video and wait for final url." --timeout-ms 1000
 ```
 
 通过标准：
@@ -197,7 +197,7 @@ env -u DASHSCOPE_API_KEY /tmp/alicloud-skills-cli -e "ping" -timeout-ms 120000
 
 ```bash
 for i in 1 2 3; do
-  /tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-tts to synthesize 'Welcome to Alibaba Cloud.' and return only audio url." -timeout-ms 180000
+  /tmp/alicloud-skills-cli -e "Use alicloud-ai-audio-tts to synthesize 'Welcome to Alibaba Cloud.' and return only audio url." --timeout-ms 180000
 done
 ```
 
@@ -285,7 +285,7 @@ printf '/model\n/new\n/session\n/quit\n' | /tmp/alicloud-skills-cli
 
 建议触发条件：
 - 每次合并到 `main`
-- 变更 `cmd/alicloud-skills/**` 或 `internal/agent/**`
+- 变更 `apps/cmd/alicloud-skills/**` 或 `apps/internal/agent/**`
 - 变更 `skills/ai/audio/**`（尤其 ASR/TTS）
 
 最小回归集：

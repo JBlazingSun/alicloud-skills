@@ -115,7 +115,7 @@ func TestWaterfallPrintIncludesLLMTokens(t *testing.T) {
 	tracer.Print(&buf)
 	out := buf.String()
 	for _, sub := range []string{
-		"\n[waterfall]\n",
+		"\n=== WATERFALL ===\n",
 		"summary: total_ms=",
 		"timeline:",
 		"steps=2 llm=1 tool=1",
@@ -145,5 +145,21 @@ func TestDecodeInputJSONChunk(t *testing.T) {
 	got := decodeInputJSONChunk([]byte(`"abc"`))
 	if got != "abc" {
 		t.Fatalf("unexpected decoded chunk: %q", got)
+	}
+}
+
+func TestPrintBlockFormatting(t *testing.T) {
+	var buf bytes.Buffer
+	printBlockHeader(&buf, "TOOL START")
+	buf.WriteString("name: bash\n")
+	printBlockFooter(&buf)
+	out := buf.String()
+	for _, sub := range []string{
+		"=== TOOL START ===",
+		"name: bash",
+	} {
+		if !strings.Contains(out, sub) {
+			t.Fatalf("missing %q in output: %s", sub, out)
+		}
 	}
 }

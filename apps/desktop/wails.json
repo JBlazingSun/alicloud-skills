@@ -1,6 +1,6 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "alicloud-skills-desktop-agent",
+  "name": "alicloud-skills-desktop",
   "outputfilename": "alicloud-skills",
   "frontend:install": "",
   "frontend:build": "",

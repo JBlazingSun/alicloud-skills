@@ -384,28 +384,43 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 
 	tracer := newWaterfallTracer(eng, sessionID)
 	toolStartAt := make(map[string]time.Time)
+	llmBlockOpen := false
 
 	for evt := range ch {
 		tracer.OnEvent(evt)
 		switch evt.Type {
 		case api.EventContentBlockDelta:
 			if evt.Delta != nil && evt.Delta.Type == "text_delta" {
+				if !llmBlockOpen {
+					printBlockHeader(os.Stdout, "LLM RESPONSE")
+					llmBlockOpen = true
+				}
 				fmt.Print(evt.Delta.Text)
 			}
 		case api.EventToolExecutionStart:
+			if llmBlockOpen {
+				printBlockFooter(os.Stdout)
+				llmBlockOpen = false
+			}
 			if evt.Name != "" {
 				toolID := strings.TrimSpace(evt.ToolUseID)
 				toolStartAt[toolID] = time.Now()
+				printBlockHeader(os.Stdout, "TOOL START")
 				if toolID != "" {
-					fmt.Printf("\n[tool] %s id=%s\n", evt.Name, toolID)
+					fmt.Printf("name: %s\nid:   %s\n", evt.Name, toolID)
 				} else {
-					fmt.Printf("\n[tool] %s\n", evt.Name)
+					fmt.Printf("name: %s\n", evt.Name)
 				}
 				if inputSummary := strings.TrimSpace(tracer.toolInputByID[toolID]); inputSummary != "" {
-					fmt.Printf("  input: %s\n", truncateSummary(inputSummary, 180))
+					fmt.Printf("input: %s\n", truncateSummary(inputSummary, 180))
 				}
+				printBlockFooter(os.Stdout)
 			}
 		case api.EventToolExecutionResult:
+			if llmBlockOpen {
+				printBlockFooter(os.Stdout)
+				llmBlockOpen = false
+			}
 			if evt.Name != "" {
 				toolID := strings.TrimSpace(evt.ToolUseID)
 				dur := int64(0)
@@ -417,33 +432,63 @@ func runStream(eng *agent.Engine, sessionID, prompt string, timeoutMs int, verbo
 				if evt.IsError != nil && *evt.IsError {
 					status = "error"
 				}
+				printBlockHeader(os.Stdout, "TOOL END")
 				if toolID != "" {
-					fmt.Printf("\n[tool:done] %s id=%s %s %s\n", evt.Name, toolID, formatDurationMs(dur), status)
+					fmt.Printf("name:   %s\nid:     %s\nstatus: %s\ncost:   %s\n", evt.Name, toolID, status, formatDurationMs(dur))
 				} else {
-					fmt.Printf("\n[tool:done] %s %s %s\n", evt.Name, formatDurationMs(dur), status)
+					fmt.Printf("name:   %s\nstatus: %s\ncost:   %s\n", evt.Name, status, formatDurationMs(dur))
 				}
 				outputSummary := strings.TrimSpace(truncateSummary(summarizeOutput(evt.Output), 240))
 				if outputSummary != "" {
-					fmt.Printf("  output: %s\n", outputSummary)
+					fmt.Printf("output: %s\n", outputSummary)
 				} else if verbose {
-					fmt.Printf("  output: (empty)\n")
+					fmt.Printf("output: (empty)\n")
 				}
+				printBlockFooter(os.Stdout)
 			}
 		case api.EventMessageStop:
+			if llmBlockOpen {
+				printBlockFooter(os.Stdout)
+				llmBlockOpen = false
+			}
 			if verbose {
-				fmt.Println("\n[message_stop]")
+				printBlockHeader(os.Stdout, "MESSAGE STOP")
+				fmt.Println("status: completed")
+				printBlockFooter(os.Stdout)
 			}
 		case api.EventError:
+			if llmBlockOpen {
+				printBlockFooter(os.Stdout)
+				llmBlockOpen = false
+			}
 			if evt.Output != nil {
-				fmt.Fprintf(os.Stderr, "\n[error] %v\n", evt.Output)
+				printBlockHeader(os.Stderr, "ERROR")
+				fmt.Fprintf(os.Stderr, "%v\n", evt.Output)
+				printBlockFooter(os.Stderr)
 			}
 		}
 	}
-	fmt.Println()
+	if llmBlockOpen {
+		printBlockFooter(os.Stdout)
+	}
 	if waterfall {
 		tracer.Print(os.Stderr)
 	}
 	return nil
+}
+
+func printBlockHeader(out io.Writer, title string) {
+	if out == nil {
+		return
+	}
+	fmt.Fprintf(out, "\n=== %s ===\n", strings.TrimSpace(title))
+}
+
+func printBlockFooter(out io.Writer) {
+	if out == nil {
+		return
+	}
+	fmt.Fprintln(out)
 }
 
 type multiValue []string
@@ -697,7 +742,9 @@ func (w *waterfallTracer) Print(out io.Writer) {
 		delete(w.toolOpen, key)
 	}
 	if len(w.steps) == 0 {
-		fmt.Fprintln(out, "\n[waterfall] no llm/tool steps captured")
+		printBlockHeader(out, "WATERFALL")
+		fmt.Fprintln(out, "no llm/tool steps captured")
+		printBlockFooter(out)
 		return
 	}
 
@@ -719,10 +766,10 @@ func (w *waterfallTracer) Print(out io.Writer) {
 		}
 	}
 
-	fmt.Fprintln(out, "\n[waterfall]")
-	fmt.Fprintf(out, "  summary: total_ms=%d steps=%d llm=%d tool=%d llm_tokens=%d/%d/%d session=%s\n",
+	printBlockHeader(out, "WATERFALL")
+	fmt.Fprintf(out, "summary: total_ms=%d steps=%d llm=%d tool=%d llm_tokens=%d/%d/%d session=%s\n",
 		total, len(w.steps), llmCount, toolCount, totalIn, totalOut, totalTokens, w.sessionID)
-	fmt.Fprintln(out, "  timeline:")
+	fmt.Fprintln(out, "timeline:")
 	const maxBarWidth = 24
 	useANSI := supportsANSI(out)
 	for i, step := range w.steps {
@@ -750,7 +797,7 @@ func (w *waterfallTracer) Print(out io.Writer) {
 			bar = colorize(bar, barColor, true)
 			detail = colorize(detail, ansiDim, true)
 		}
-		fmt.Fprintf(out, "    %6.1fs | %-18s %s %6s %5.1f%% %s\n",
+		fmt.Fprintf(out, "  %6.1fs | %-18s %s %6s %5.1f%% %s\n",
 			float64(startMs)/1000.0,
 			label,
 			bar,
@@ -759,8 +806,9 @@ func (w *waterfallTracer) Print(out io.Writer) {
 			detail,
 		)
 	}
-	fmt.Fprintf(out, "    %6.1fs | done\n", float64(total)/1000.0)
-	fmt.Fprintf(out, "  total: total_ms=%d llm_tokens=%d/%d/%d session=%s\n", total, totalIn, totalOut, totalTokens, w.sessionID)
+	fmt.Fprintf(out, "  %6.1fs | done\n", float64(total)/1000.0)
+	fmt.Fprintf(out, "total: total_ms=%d llm_tokens=%d/%d/%d session=%s\n", total, totalIn, totalOut, totalTokens, w.sessionID)
+	printBlockFooter(out)
 }
 
 func durationMs(start, end time.Time) int64 {

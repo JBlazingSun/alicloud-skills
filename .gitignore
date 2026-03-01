@@ -213,7 +213,8 @@ output/
 modelstudio/
 
 # Go/Web/Desktop generated artifacts
-apps/desktop-agent/frontend/dist/
+apps/desktop/frontend/dist/
+apps/build/
 apps/web/node_modules/
 apps/web/.next/
 apps/web/out/

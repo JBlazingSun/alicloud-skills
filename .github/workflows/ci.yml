@@ -21,7 +21,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: apps/go.mod
 
       - name: Install Linux desktop deps
         if: runner.os == 'Linux'
@@ -48,28 +48,28 @@ jobs:
         run: corepack enable
 
       - name: Go test
-        run: go test ./...
+        run: go -C apps test ./...
 
       - name: Build CLI (unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p build/bin
-          go build -o build/bin/alicloud-skills ./cmd/alicloud-skills
+          go -C apps build -o ../build/bin/alicloud-skills ./cmd/alicloud-skills
 
       - name: Build CLI (windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build/bin | Out-Null
-          go build -o build/bin/alicloud-skills.exe ./cmd/alicloud-skills
+          go -C apps build -o ../build/bin/alicloud-skills.exe ./cmd/alicloud-skills
 
       - name: Build web assets (unix)
         if: runner.os != 'Windows'
         run: |
-          NEXT_DESKTOP_EMBED=1 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:10112/ws pnpm --dir apps/web install --frozen-lockfile
+          NEXT_DESKTOP_EMBED=1 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:10112/ws pnpm --dir apps/web install --frozen-lockfile --ignore-scripts
           NEXT_DESKTOP_EMBED=1 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:10112/ws pnpm --dir apps/web build
-          mkdir -p apps/desktop-agent/frontend/dist
-          cp -a apps/web/out/. apps/desktop-agent/frontend/dist/
+          mkdir -p apps/desktop/frontend/dist
+          cp -a apps/web/out/. apps/desktop/frontend/dist/
 
       - name: Build web assets (windows)
         if: runner.os == 'Windows'
@@ -77,29 +77,29 @@ jobs:
         run: |
           $env:NEXT_DESKTOP_EMBED = "1"
           $env:NEXT_PUBLIC_WS_URL = "ws://127.0.0.1:10112/ws"
-          pnpm --dir apps/web install --frozen-lockfile
+          pnpm --dir apps/web install --frozen-lockfile --ignore-scripts
           pnpm --dir apps/web build
-          New-Item -ItemType Directory -Force -Path apps/desktop-agent/frontend/dist | Out-Null
-          Copy-Item -Path apps/web/out/* -Destination apps/desktop-agent/frontend/dist -Recurse -Force
+          New-Item -ItemType Directory -Force -Path apps/desktop/frontend/dist | Out-Null
+          Copy-Item -Path apps/web/out/* -Destination apps/desktop/frontend/dist -Recurse -Force
 
       - name: Build Desktop (linux)
         if: runner.os == 'Linux'
         run: |
           mkdir -p build/bin
-          go build -tags "production,webkit2_41" -o build/bin/alicloud-skills-desktop ./apps/desktop-agent
+          go -C apps build -tags "production,webkit2_41" -o ../build/bin/alicloud-skills-desktop ./desktop
 
       - name: Build Desktop (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p build/bin
-          go build -tags "production" -o build/bin/alicloud-skills-desktop ./apps/desktop-agent
+          go -C apps build -tags "production" -o ../build/bin/alicloud-skills-desktop ./desktop
 
       - name: Build Desktop (windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build/bin | Out-Null
-          go build -tags "production" -o build/bin/alicloud-skills-desktop.exe ./apps/desktop-agent
+          go -C apps build -tags "production" -o ../build/bin/alicloud-skills-desktop.exe ./desktop
 
       - name: Upload Go artifacts
         uses: actions/upload-artifact@v4

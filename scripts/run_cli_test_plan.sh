@@ -6,6 +6,7 @@ WITH_L4=0
 SKIP_L3=0
 TIMEOUT_MS=180000
 OUT_DIR=""
+APPS_DIR="apps"
 
 usage() {
   cat <<'USAGE'
@@ -13,6 +14,7 @@ Usage: scripts/run_cli_test_plan.sh [options]
 
 Options:
   --binary <path>      CLI binary path (default: /tmp/alicloud-skills-cli)
+  --apps-dir <path>    Go module directory for CLI source (default: apps)
   --with-l4            Run additional L4 scenarios
   --skip-l3            Skip TTS<->ASR cross-validation cases
   --timeout-ms <ms>    Timeout for one-shot CLI cases (default: 180000)
@@ -30,6 +32,10 @@ while [[ $# -gt 0 ]]; do
     --with-l4)
       WITH_L4=1
       shift
+      ;;
+    --apps-dir)
+      APPS_DIR="${2:-}"
+      shift 2
       ;;
     --skip-l3)
       SKIP_L3=1
@@ -147,12 +153,10 @@ EOF_SUM
 }
 
 build_binary_if_needed() {
-  if [[ ! -x "$BIN" ]]; then
-    echo "[info] building CLI binary: $BIN"
-    if ! go build -o "$BIN" ./cmd/alicloud-skills >"$OUT_DIR/build-cli.log" 2>&1; then
-      echo "[error] failed to build CLI, see $OUT_DIR/build-cli.log" >&2
-      exit 1
-    fi
+  echo "[info] building CLI binary: $BIN"
+  if ! go -C "$APPS_DIR" build -o "$BIN" ./cmd/alicloud-skills >"$OUT_DIR/build-cli.log" 2>&1; then
+    echo "[error] failed to build CLI, see $OUT_DIR/build-cli.log" >&2
+    exit 1
   fi
 }
 
@@ -163,12 +167,12 @@ run_l0() {
 
   log="$OUT_DIR/build-and-unit.log"
   {
-    echo "== go test ./cmd/alicloud-skills/..."
-    go test ./cmd/alicloud-skills/...
-    echo "== go test ./internal/agent/..."
-    go test ./internal/agent/...
-    echo "== go build -o $BIN ./cmd/alicloud-skills"
-    go build -o "$BIN" ./cmd/alicloud-skills
+    echo "== go -C $APPS_DIR test ./cmd/alicloud-skills/..."
+    go -C "$APPS_DIR" test ./cmd/alicloud-skills/...
+    echo "== go -C $APPS_DIR test ./internal/agent/..."
+    go -C "$APPS_DIR" test ./internal/agent/...
+    echo "== go -C $APPS_DIR build -o $BIN ./cmd/alicloud-skills"
+    go -C "$APPS_DIR" build -o "$BIN" ./cmd/alicloud-skills
   } >"$log" 2>&1
 
   if [[ $? -eq 0 ]]; then
@@ -209,7 +213,7 @@ run_l1() {
     record_case "L1" "run --help" "fail" "see $(basename "$log3")" "$s3"
   fi
 
-  if [[ $rc4 -eq 0 ]] && contains 'not implemented|one-shot mode' "$log4"; then
+  if [[ $rc4 -eq 0 ]] && contains 'API mode placeholder|Usage:|api \[flags\]' "$log4"; then
     record_case "L1" "api --help" "pass" "subcommand help routed" "$s4"
   else
     record_case "L1" "api --help" "fail" "see $(basename "$log4")" "$s4"
@@ -217,11 +221,17 @@ run_l1() {
 }
 
 run_l2() {
+  if [[ -z "${DASHSCOPE_API_KEY:-}" && ! -f "$HOME/.alibabacloud/credentials" ]]; then
+    local started_skip
+    started_skip="$(now_ms)"
+    record_case "L2" "-e ping" "skip" "missing DASHSCOPE_API_KEY/credentials" "$started_skip"
+    return
+  fi
   local log rc
   local started_at
   started_at="$(now_ms)"
   log="$OUT_DIR/oneshot-ping.log"
-  run_cmd_log "$log" "$BIN" -e "ping" -timeout-ms 120000
+  run_cmd_log "$log" "$BIN" -e "ping" --timeout-ms 120000
   rc=$?
 
   if [[ $rc -eq 0 ]] && contains_ci 'pong|ready to help|ready' "$log"; then
@@ -258,7 +268,7 @@ run_l3() {
   en_log="$OUT_DIR/tts-asr-en.log"
 
   s_zh="$(now_ms)"
-  run_cmd_log "$zh_log" "$BIN" -e "$zh_prompt" -timeout-ms "$TIMEOUT_MS"
+  run_cmd_log "$zh_log" "$BIN" -e "$zh_prompt" --timeout-ms "$TIMEOUT_MS"
   rc_zh=$?
   if [[ $rc_zh -eq 0 ]] && contains '"normalized_equal"[[:space:]]*:[[:space:]]*true' "$zh_log" && contains 'https?://[^[:space:]]+' "$zh_log"; then
     record_case "L3" "TTS→ASR 中文" "pass" "round-trip consistent" "$s_zh"
@@ -267,7 +277,7 @@ run_l3() {
   fi
 
   s_en="$(now_ms)"
-  run_cmd_log "$en_log" "$BIN" -e "$en_prompt" -timeout-ms "$TIMEOUT_MS"
+  run_cmd_log "$en_log" "$BIN" -e "$en_prompt" --timeout-ms "$TIMEOUT_MS"
   rc_en=$?
   if [[ $rc_en -eq 0 ]] && contains '"normalized_equal"[[:space:]]*:[[:space:]]*true' "$en_log" && contains 'https?://[^[:space:]]+' "$en_log"; then
     record_case "L3" "TTS→ASR 英文" "pass" "round-trip consistent" "$s_en"
@@ -296,7 +306,7 @@ run_l4() {
   s_a="$(now_ms)"
   {
     printf '/skills\n/quit\n' | "$BIN"
-    "$BIN" -e "Use alicloud-ai-image-qwen-image to generate a 512*512 minimalist icon about cloud and return output image url only." -timeout-ms "$TIMEOUT_MS"
+    "$BIN" -e "Use alicloud-ai-image-qwen-image to generate a 512*512 minimalist icon about cloud and return output image url only." --timeout-ms "$TIMEOUT_MS"
   } >"$business_log" 2>&1
   rc_a=$?
   if [[ $rc_a -eq 0 ]] && contains 'alicloud-ai-audio-tts' "$business_log" && contains 'alicloud-ai-audio-asr' "$business_log"; then
@@ -307,8 +317,8 @@ run_l4() {
 
   s_b="$(now_ms)"
   {
-    "$BIN" -e "Run EXACTLY this command and do not change any argument: python3 skills/ai/audio/alicloud-ai-audio-asr/scripts/transcribe_audio.py --audio https://dashscope.oss-cn-beijing.aliyuncs.com/audios/welcome.mp3 --model qwen3-asr-flash-xxx --print-response ; return stdout and stderr only." -timeout-ms 120000
-    "$BIN" -e "Use alicloud-ai-video-wan-video to generate a video and wait for final url." -timeout-ms 1000
+    "$BIN" -e "Run EXACTLY this command and do not change any argument: python3 skills/ai/audio/alicloud-ai-audio-asr/scripts/transcribe_audio.py --audio https://dashscope.oss-cn-beijing.aliyuncs.com/audios/welcome.mp3 --model qwen3-asr-flash-xxx --print-response ; return stdout and stderr only." --timeout-ms 120000
+    "$BIN" -e "Use alicloud-ai-video-wan-video to generate a video and wait for final url." --timeout-ms 1000
   } >"$negative_log" 2>&1
   rc_b=$?
   local invalid_failed timeout_failed
@@ -329,7 +339,7 @@ run_l4() {
   s_c="$(now_ms)"
   {
     for i in 1 2 3; do
-      "$BIN" -e "Use alicloud-ai-audio-tts to synthesize 'Welcome to Alibaba Cloud.' and return only audio url." -timeout-ms "$TIMEOUT_MS"
+      "$BIN" -e "Use alicloud-ai-audio-tts to synthesize 'Welcome to Alibaba Cloud.' and return only audio url." --timeout-ms "$TIMEOUT_MS"
     done
     printf '/model\n/new\n/session\n/quit\n' | "$BIN"
   } >"$stability_log" 2>&1
