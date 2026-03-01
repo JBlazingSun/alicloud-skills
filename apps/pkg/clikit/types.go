@@ -39,6 +39,7 @@ type StreamEngine interface {
 	RunStream(ctx context.Context, sessionID, prompt string) (<-chan api.StreamEvent, error)
 	ModelTurnCount(sessionID string) int
 	ModelTurnsSince(sessionID string, offset int) []ModelTurnStat
+	RepoRoot() string
 }
 
 type ReplEngine interface {

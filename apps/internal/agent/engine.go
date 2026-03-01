@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,11 @@ import (
 )
 
 const DefaultModel = "qwen3.5-plus"
+const (
+	AutonomyConservative = "conservative"
+	AutonomyBalanced     = "balanced"
+	AutonomyAggressive   = "aggressive"
+)
 
 const DefaultSystemPrompt = `You are a skill-powered assistant for Alibaba Cloud tasks.
 
@@ -39,10 +45,13 @@ type Config struct {
 	SkillsRecursive *bool
 	ModelName       string
 	APIKey          string
+	Autonomy        string
+	ZeroQuestion    bool
 }
 
 type Engine struct {
 	runtime         *api.Runtime
+	repoRoot        string
 	modelName       string
 	settingsRoot    string
 	skillsDirs      []string
@@ -51,6 +60,7 @@ type Engine struct {
 	turnRecorder    *modelTurnRecorder
 	mu              sync.RWMutex
 	perm            PermissionHandler
+	autonomy        string
 }
 
 type ModelTurnStat struct {
@@ -149,6 +159,7 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 	if cfg.APIKey == "" {
 		return nil, errors.New("DASHSCOPE_API_KEY is not set")
 	}
+	cfg.Autonomy = NormalizeAutonomyMode(cfg.Autonomy)
 
 	settingsRoot := strings.TrimSpace(cfg.ConfigRoot)
 	if settingsRoot == "" {
@@ -163,6 +174,10 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 	}
 	runtimeOverrides := buildRuntimeOverrides(settingsRoot)
 	turnRecorder := newModelTurnRecorder()
+	baseSystemPrompt := DefaultSystemPrompt
+	if cfg.ZeroQuestion {
+		baseSystemPrompt = BuildAutonomousSystemPrompt(baseSystemPrompt)
+	}
 
 	var eng *Engine
 	rt, err := api.New(ctx, api.Options{
@@ -170,7 +185,7 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		ProjectRoot:         cfg.RepoRoot,
 		ConfigRoot:          settingsRoot,
 		ModelFactory:        &model.OpenAIProvider{APIKey: cfg.APIKey, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", ModelName: cfg.ModelName},
-		SystemPrompt:        BuildSystemPrompt(DefaultSystemPrompt, metas),
+		SystemPrompt:        BuildSystemPrompt(baseSystemPrompt, metas),
 		SettingsOverrides:   runtimeOverrides,
 		SkillsDirs:          cfg.SkillsDirs,
 		SkillsRecursive:     cfg.SkillsRecursive,
@@ -200,7 +215,7 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 		},
 		DefaultEnableCache: true,
 		TokenTracking:      true,
-		ApprovalWait:       true,
+		ApprovalWait:       cfg.Autonomy == AutonomyConservative,
 		PermissionRequestHandler: func(ctx context.Context, req api.PermissionRequest) (coreevents.PermissionDecisionType, error) {
 			if eng == nil {
 				return coreevents.PermissionDeny, nil
@@ -214,14 +229,120 @@ func NewEngine(ctx context.Context, cfg Config) (*Engine, error) {
 
 	eng = &Engine{
 		runtime:         rt,
+		repoRoot:        cfg.RepoRoot,
 		modelName:       cfg.ModelName,
 		settingsRoot:    settingsRoot,
 		skillsDirs:      normalizedSkillsDirs(cfg.RepoRoot, cfg.SkillsDirs),
 		skillsRecursive: cfg.SkillsRecursive == nil || *cfg.SkillsRecursive,
 		metas:           metas,
 		turnRecorder:    turnRecorder,
+		autonomy:        cfg.Autonomy,
 	}
+	eng.perm = autoPermissionHandler(cfg.Autonomy, cfg.RepoRoot)
 	return eng, nil
+}
+
+func (e *Engine) RepoRoot() string {
+	if e == nil {
+		return ""
+	}
+	return e.repoRoot
+}
+
+func BuildAutonomousSystemPrompt(base string) string {
+	base = strings.TrimSpace(base)
+	extra := `Autonomous execution mode:
+- Do not ask clarifying questions.
+- Infer missing details using reasonable defaults and proceed.
+- Execute tasks end-to-end without waiting for user confirmation.
+- Only stop when blocked by missing credentials or explicit security denial.
+- Return concrete outputs and file paths, not plans.`
+	if base == "" {
+		return extra
+	}
+	return base + "\n\n" + extra
+}
+
+func NormalizeAutonomyMode(v string) string {
+	mode := strings.ToLower(strings.TrimSpace(v))
+	switch mode {
+	case "", AutonomyBalanced:
+		return AutonomyBalanced
+	case AutonomyConservative:
+		return AutonomyConservative
+	case AutonomyAggressive:
+		return AutonomyAggressive
+	default:
+		return AutonomyBalanced
+	}
+}
+
+func autoPermissionHandler(mode, repoRoot string) PermissionHandler {
+	mode = NormalizeAutonomyMode(mode)
+	repoRoot = filepath.Clean(strings.TrimSpace(repoRoot))
+	return func(_ context.Context, req PermissionRequest) (PermissionDecision, error) {
+		return autoPermissionDecision(mode, repoRoot, req), nil
+	}
+}
+
+var riskyBashPattern = regexp.MustCompile(`(?i)(rm\s+-rf\s+/|mkfs|shutdown|reboot|:\(\)\s*\{)`)
+
+func autoPermissionDecision(mode, repoRoot string, req PermissionRequest) PermissionDecision {
+	mode = NormalizeAutonomyMode(mode)
+	if mode == AutonomyConservative {
+		return PermissionAsk
+	}
+
+	tool := strings.ToLower(strings.TrimSpace(req.ToolName))
+	switch tool {
+	case "file_read", "glob":
+		return PermissionAllow
+	case "file_write":
+		target := strings.TrimSpace(req.Target)
+		if target == "" {
+			return PermissionAllow
+		}
+		cleanTarget := filepath.Clean(target)
+		if strings.HasPrefix(cleanTarget, "..") {
+			return PermissionDeny
+		}
+		if mode == AutonomyBalanced && repoRoot != "" {
+			absTarget := cleanTarget
+			if !filepath.IsAbs(absTarget) {
+				absTarget = filepath.Join(repoRoot, absTarget)
+			}
+			absTarget = filepath.Clean(absTarget)
+			rel, err := filepath.Rel(repoRoot, absTarget)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				return PermissionDeny
+			}
+		}
+		return PermissionAllow
+	case "bash":
+		cmd := summarizeBashCommand(req.ToolParams)
+		if riskyBashPattern.MatchString(cmd) {
+			return PermissionDeny
+		}
+		return PermissionAllow
+	default:
+		if mode == AutonomyAggressive {
+			return PermissionAllow
+		}
+		return PermissionAsk
+	}
+}
+
+func summarizeBashCommand(params map[string]any) string {
+	if len(params) == 0 {
+		return ""
+	}
+	keys := []string{"command", "cmd", "script", "input"}
+	for _, k := range keys {
+		if v, ok := params[k]; ok {
+			return strings.TrimSpace(fmt.Sprintf("%v", v))
+		}
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", params))
 }
 
 func (e *Engine) Close() error {

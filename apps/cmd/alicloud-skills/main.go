@@ -34,6 +34,7 @@ func (a *cliEngineAdapter) SettingsRoot() string { return a.eng.SettingsRoot() }
 func (a *cliEngineAdapter) SkillsRecursive() bool { return a.eng.SkillsRecursive() }
 
 func (a *cliEngineAdapter) SkillsDirs() []string { return a.eng.SkillsDirs() }
+func (a *cliEngineAdapter) RepoRoot() string     { return a.eng.RepoRoot() }
 
 func (a *cliEngineAdapter) Skills() []clikit.SkillMeta {
 	src := a.eng.Skills()
@@ -91,6 +92,8 @@ type cliOptions struct {
 	configRoot      string
 	skillsRecursive bool
 	timeoutMs       int
+	autonomy        string
+	auto            bool
 	sessionID       string
 	printConfig     bool
 	verbose         bool
@@ -103,6 +106,7 @@ func newRootCmd() *cobra.Command {
 	opts := &cliOptions{
 		skillsRecursive: true,
 		timeoutMs:       10 * 60 * 1000,
+		autonomy:        agent.AutonomyBalanced,
 		waterfall:       waterfallModeFull,
 	}
 
@@ -123,6 +127,8 @@ func newRootCmd() *cobra.Command {
 	rootCmd.PersistentFlags().StringVar(&opts.configRoot, "config-root", "", "Config root directory (settings.json/settings.local.json)")
 	rootCmd.PersistentFlags().BoolVar(&opts.skillsRecursive, "skills-recursive", true, "Discover SKILL.md recursively")
 	rootCmd.PersistentFlags().IntVar(&opts.timeoutMs, "timeout-ms", 10*60*1000, "Run timeout in milliseconds")
+	rootCmd.PersistentFlags().StringVar(&opts.autonomy, "autonomy", agent.AutonomyBalanced, "Autonomy level: conservative|balanced|aggressive")
+	rootCmd.PersistentFlags().BoolVar(&opts.auto, "auto", false, "Enable zero-question fully autonomous execution mode")
 	rootCmd.PersistentFlags().StringVar(&opts.sessionID, "session-id", "", "Session ID (default: auto-generate)")
 	rootCmd.PersistentFlags().BoolVar(&opts.printConfig, "print-effective-config", false, "Print resolved runtime config before running")
 	rootCmd.PersistentFlags().BoolVar(&opts.verbose, "verbose", false, "Verbose stream diagnostics")
@@ -262,6 +268,15 @@ func resolveCLIOptions(cmd *cobra.Command, in cliOptions) cliOptions {
 			}
 		}
 	}
+	if !flagChanged(cmd, "autonomy") {
+		if v := strings.TrimSpace(os.Getenv("ALICLOUD_SKILLS_AUTONOMY")); v != "" {
+			out.autonomy = v
+		}
+	}
+	if out.auto {
+		out.autonomy = agent.AutonomyAggressive
+	}
+	out.autonomy = agent.NormalizeAutonomyMode(out.autonomy)
 	out.waterfall = clikit.NormalizeWaterfallMode(out.waterfall)
 	return out
 }
@@ -285,6 +300,8 @@ func initEngine(ctx context.Context, opts cliOptions) (*agent.Engine, string, ag
 		RepoRoot:        repoRoot,
 		ConfigRoot:      strings.TrimSpace(opts.configRoot),
 		ModelName:       opts.modelName,
+		Autonomy:        opts.autonomy,
+		ZeroQuestion:    opts.auto,
 		SkillsRecursive: boolPtr(opts.skillsRecursive),
 	}
 	if len(opts.skillsDirs) > 0 {

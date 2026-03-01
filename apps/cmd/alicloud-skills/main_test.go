@@ -38,3 +38,28 @@ func TestAPICommand(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveCLIOptionsAutonomyFromEnv(t *testing.T) {
+	t.Setenv("ALICLOUD_SKILLS_AUTONOMY", "aggressive")
+	cmd := newRootCmd()
+	got := resolveCLIOptions(cmd, cliOptions{})
+	if got.autonomy != "aggressive" {
+		t.Fatalf("expected aggressive autonomy, got %q", got.autonomy)
+	}
+
+	t.Setenv("ALICLOUD_SKILLS_AUTONOMY", "invalid")
+	got = resolveCLIOptions(cmd, cliOptions{})
+	if got.autonomy != "balanced" {
+		t.Fatalf("invalid autonomy should normalize to balanced, got %q", got.autonomy)
+	}
+}
+
+func TestResolveCLIOptionsAutoForcesAggressive(t *testing.T) {
+	got := resolveCLIOptions(nil, cliOptions{autonomy: "conservative", auto: true})
+	if got.autonomy != "aggressive" {
+		t.Fatalf("--auto should force aggressive autonomy, got %q", got.autonomy)
+	}
+	if !got.auto {
+		t.Fatalf("--auto should remain enabled")
+	}
+}

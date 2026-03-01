@@ -85,3 +85,53 @@ func TestMiddlewarePreviewUTF8Safe(t *testing.T) {
 		t.Fatalf("unexpected utf8 corruption: %q", got)
 	}
 }
+
+func TestNormalizeAutonomyMode(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{in: "", want: AutonomyBalanced},
+		{in: "conservative", want: AutonomyConservative},
+		{in: "BALANCED", want: AutonomyBalanced},
+		{in: "aggressive", want: AutonomyAggressive},
+		{in: "unknown", want: AutonomyBalanced},
+	}
+	for _, tc := range cases {
+		if got := NormalizeAutonomyMode(tc.in); got != tc.want {
+			t.Fatalf("NormalizeAutonomyMode(%q)=%q want=%q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestAutoPermissionDecision(t *testing.T) {
+	repoRoot := "/repo"
+	if got := autoPermissionDecision(AutonomyConservative, repoRoot, PermissionRequest{ToolName: "file_read"}); got != PermissionAsk {
+		t.Fatalf("conservative should ask, got=%s", got)
+	}
+	if got := autoPermissionDecision(AutonomyBalanced, repoRoot, PermissionRequest{ToolName: "file_read"}); got != PermissionAllow {
+		t.Fatalf("balanced file_read should allow, got=%s", got)
+	}
+	if got := autoPermissionDecision(AutonomyBalanced, repoRoot, PermissionRequest{ToolName: "file_write", Target: "../etc/passwd"}); got != PermissionDeny {
+		t.Fatalf("balanced invalid target should deny, got=%s", got)
+	}
+	if got := autoPermissionDecision(AutonomyBalanced, repoRoot, PermissionRequest{
+		ToolName:   "bash",
+		ToolParams: map[string]any{"command": "rm -rf /"},
+	}); got != PermissionDeny {
+		t.Fatalf("dangerous bash should deny, got=%s", got)
+	}
+	if got := autoPermissionDecision(AutonomyAggressive, repoRoot, PermissionRequest{ToolName: "unknown_tool"}); got != PermissionAllow {
+		t.Fatalf("aggressive unknown tool should allow, got=%s", got)
+	}
+}
+
+func TestBuildAutonomousSystemPrompt(t *testing.T) {
+	got := BuildAutonomousSystemPrompt("base")
+	if !strings.Contains(got, "Do not ask clarifying questions") {
+		t.Fatalf("missing zero-question instruction: %s", got)
+	}
+	if !strings.Contains(got, "base") {
+		t.Fatalf("base prompt should be preserved: %s", got)
+	}
+}
